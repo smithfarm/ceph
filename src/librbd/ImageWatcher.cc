@@ -952,10 +952,14 @@ void ImageWatcher::reregister_watch() {
   ldout(m_image_ctx.cct, 10) << "re-registering image watch" << dendl;
 
   {
-    RWLock::WLocker l(m_image_ctx.owner_lock);
-    bool lock_owner = (m_lock_owner_state == LOCK_OWNER_STATE_LOCKED);
-    if (lock_owner) {
-      unlock();
+    bool was_lock_owner;
+    {
+      RWLock::RLocker l(m_image_ctx.owner_lock);
+      was_lock_owner = (m_lock_owner_state == LOCK_OWNER_STATE_LOCKED);
+    }
+    if (was_lock_owner) {
+      // ensure all async requests are canceled and IO is flushed
+      release_lock();
     }
 
     int r;
@@ -983,7 +987,8 @@ void ImageWatcher::reregister_watch() {
     }
     handle_payload(HeaderUpdatePayload(), NULL);
 
-    if (lock_owner) {
+    if (was_lock_owner) {
+      RWLock::WLocker l(m_image_ctx.owner_lock);
       r = try_lock();
       if (r == -EBUSY) {
         ldout(m_image_ctx.cct, 5) << "lost image lock while re-registering "
