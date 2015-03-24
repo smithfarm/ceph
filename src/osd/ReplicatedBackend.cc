@@ -1286,6 +1286,7 @@ void ReplicatedBackend::sub_op_modify_commit(RepModifyRef rm)
   }
   else {
     assert(0);
+    return; // in NDEBUG case
   }
 
   commit->set_priority(CEPH_MSG_PRIO_HIGH); // this better match ack priority!
