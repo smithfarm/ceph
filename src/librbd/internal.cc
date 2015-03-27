@@ -697,14 +697,16 @@ int remove_object_map(ImageCtx *ictx) {
     if (r < 0)
       return r;
 
+    bool fast_diff_enabled = false;
     {
       RWLock::RLocker snap_locker(ictx->snap_lock);
       if (ictx->get_snap_id(snap_name) == CEPH_NOSNAP) {
         return -ENOENT;
       }
+      fast_diff_enabled = ((ictx->features & RBD_FEATURE_FAST_DIFF) != 0);
     }
 
-    while (ictx->image_watcher->is_lock_supported()) {
+    while (fast_diff_enabled && ictx->image_watcher->is_lock_supported()) {
       r = prepare_image_update(ictx);
       if (r < 0) {
 	return -EROFS;
