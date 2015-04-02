@@ -5344,7 +5344,8 @@ void ReplicatedPG::make_writeable(OpContext *ctx)
       ctx->new_obs.oi.clear_flag(object_info_t::FLAG_DIRTY);
       --ctx->delta_stats.num_objects_dirty;
       osd->logger->inc(l_osd_tier_clean);
-    } else if (!was_dirty && !ctx->undirty) {
+    } else if (!was_dirty && !ctx->undirty &&
+               pool.info.cache_mode != pg_pool_t::CACHEMODE_NONE) {
       dout(20) << " setting DIRTY flag" << dendl;
       ctx->new_obs.oi.set_flag(object_info_t::FLAG_DIRTY);
       ++ctx->delta_stats.num_objects_dirty;
