@@ -714,6 +714,26 @@ uint64_t LoadGen::gen_next_op()
   return op->len;
 }
 
+std::set<std::string> enumerate_objects(IoCtx *io_ctx, int m)
+{
+  std::set<std::string> result;
+
+  for (int n = 0; n < m; ++n) {
+    librados::NObjectIterator i;
+    if (m == 1) {
+      i = io_ctx->nobjects_begin();
+    } else {
+      i = io_ctx->nobjects_begin(n, m);
+    }
+    librados::NObjectIterator i_end = io_ctx->nobjects_end();
+    for (; i != i_end; ++i) {
+      result.insert(i->get_oid());
+    }
+  }
+
+  return result;
+}
+
 int LoadGen::run()
 {
   start_time = ceph_clock_now(g_ceph_context);
@@ -1523,26 +1543,37 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
       if (formatter)
         formatter->open_array_section("objects");
       try {
-	librados::NObjectIterator i = io_ctx.nobjects_begin();
-	librados::NObjectIterator i_end = io_ctx.nobjects_end();
-	for (; i != i_end; ++i) {
-	  if (!formatter) {
-	    // Only include namespace in output when wildcard specified
-	    if (wildcard)
-	      *outstream << i->get_nspace() << "\t";
-	    *outstream << i->get_oid();
-	    if (i->get_locator().size())
-	      *outstream << "\t" << i->get_locator();
-	    *outstream << std::endl;
-	  } else {
-	    formatter->open_object_section("object");
-	    formatter->dump_string("namespace", i->get_nspace());
-	    formatter->dump_string("name", i->get_oid());
-	    if (i->get_locator().size())
-	      formatter->dump_string("locator", i->get_locator());
-	    formatter->close_section(); //object
-	  }
-	}
+        std::set<std::string> all_objs;
+        all_objs = enumerate_objects(&io_ctx, 1);
+        for (int M = 2; M < 27; ++M) {
+          std::set<std::string> these_objects;
+          these_objects = enumerate_objects(&io_ctx, M);
+          if (these_objects != all_objs) {
+            cerr << "Mismatch at M=" << M << " " << all_objs.size()
+                 << " vs " << these_objects.size() << std::endl;
+          }
+        }
+
+        librados::NObjectIterator i = io_ctx.nobjects_begin();
+        librados::NObjectIterator i_end = io_ctx.nobjects_end();
+        for (; i != i_end; ++i) {
+          if (!formatter) {
+            // Only include namespace in output when wildcard specified
+            if (wildcard)
+              *outstream << i->get_nspace() << "\t";
+            *outstream << i->get_oid();
+            if (i->get_locator().size())
+              *outstream << "\t" << i->get_locator();
+            *outstream << std::endl;
+          } else {
+            formatter->open_object_section("object");
+            formatter->dump_string("namespace", i->get_nspace());
+            formatter->dump_string("name", i->get_oid());
+            if (i->get_locator().size())
+              formatter->dump_string("locator", i->get_locator());
+            formatter->close_section(); //object
+          }
+        }
       }
       catch (const std::runtime_error& e) {
 	cerr << e.what() << std::endl;

@@ -1315,6 +1315,14 @@ public:
     int max_entries;
     string nspace;
 
+    uint32_t pg_mask;
+    // Only touch PGs whose number (masked with pg_mask) matches this
+    uint32_t pg_mask_val;
+    // List objects starting from this hash value (including equal to)
+    uint64_t object_hash_low;
+    // Drop objects greater than hash_high (not equal to)
+    uint64_t object_hash_high;
+
     bufferlist bl;   // raw data read to here
     std::list<librados::ListObjectImpl> list;
 

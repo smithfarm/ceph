@@ -32,9 +32,9 @@ namespace ceph {
 struct hobject_t {
   object_t oid;
   snapid_t snap;
-private:
   uint32_t hash;
   bool max;
+private:
   filestore_hobject_key_t filestore_key_cache;
   static const int64_t POOL_IS_TEMP = -1;
 public:

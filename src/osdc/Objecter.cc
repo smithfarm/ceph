@@ -3102,10 +3102,19 @@ uint32_t Objecter::list_nobjects_seek(NListContext *list_context,
   return list_context->current_pg;
 }
 
+static uint32_t nibble_twiddle(uint32_t hash)
+{
+  hash = ((hash & 0x0f0f0f0f) << 4) | ((hash & 0xf0f0f0f0) >> 4);
+  hash = ((hash & 0x00ff00ff) << 8) | ((hash & 0xff00ff00) >> 8);
+  hash = ((hash & 0x0000ffff) << 16) | ((hash & 0xffff0000) >> 16);
+  return hash;
+}
+
+
 void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
 {
-  ldout(cct, 10) << "list_objects" << dendl;
-  ldout(cct, 20) << " pool_id " << list_context->pool_id
+  ldout(cct, 10) << __func__ << dendl;
+  ldout(cct, 10) << " pool_id " << list_context->pool_id
 	   << " pool_snap_seq " << list_context->pool_snap_seq
 	   << " max_entries " << list_context->max_entries
 	   << " list_context " << list_context
@@ -3113,11 +3122,23 @@ void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
 	   << " list_context->current_pg " << list_context->current_pg
 	   << " list_context->cookie " << list_context->cookie << dendl;
 
+  ldout(cct, 10) << "cpg: " << list_context->current_pg << dendl;
+  ldout(cct, 10) << "pgm: 0x" << std::hex << list_context->pg_mask << std::dec << dendl;
+  ldout(cct, 10) << "pgmv: 0x" << std::hex << list_context->pg_mask_val << std::dec << dendl;
+  assert((list_context->current_pg & list_context->pg_mask) == list_context->pg_mask_val);
+
   if (list_context->at_end_of_pg) {
     list_context->at_end_of_pg = false;
-    ++list_context->current_pg;
+    // Skip past any PG IDs that our mask rules out
+    do {
+      ++list_context->current_pg;
+    } while ((list_context->current_pg & list_context->pg_mask) != list_context->pg_mask_val);
     list_context->current_pg_epoch = 0;
     list_context->cookie = collection_list_handle_t();
+
+    list_context->cookie.hash = nibble_twiddle(list_context->object_hash_low);
+    
+    // Always list from upper
     if (list_context->current_pg >= list_context->starting_pg_num) {
       list_context->at_end_of_pool = true;
       ldout(cct, 20) << " no more pgs; reached end of pool" << dendl;
@@ -3148,6 +3169,7 @@ void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
     ldout(cct, 10) << " pg_num changed; restarting with " << pg_num << dendl;
     list_context->current_pg = 0;
     list_context->cookie = collection_list_handle_t();
+    list_context->cookie.hash = list_context->object_hash_low;
     list_context->current_pg_epoch = 0;
     list_context->starting_pg_num = pg_num;
   }
@@ -3167,7 +3189,7 @@ void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
 void Objecter::_nlist_reply(NListContext *list_context, int r,
 			   Context *final_finish, epoch_t reply_epoch)
 {
-  ldout(cct, 10) << "_list_reply" << dendl;
+  ldout(cct, 10) << __func__ << dendl;
 
   bufferlist::iterator iter = list_context->bl.begin();
   pg_nls_response_t response;
@@ -3177,12 +3199,52 @@ void Objecter::_nlist_reply(NListContext *list_context, int r,
     ::decode(extra_info, iter);
   }
   list_context->cookie = response.handle;
+
+
+  ldout(cct, 10) << "cookie: " << list_context->cookie << dendl;
+
   if (!list_context->current_pg_epoch) {
     // first pgls result, set epoch marker
     ldout(cct, 20) << " first pgls piece, reply_epoch is "
 		   << reply_epoch << dendl;
     list_context->current_pg_epoch = reply_epoch;
   }
+
+  ldout(cct, 10) << "current_pg: " << list_context->current_pg << dendl;
+  ldout(cct, 10) << "cookie->oid: " << list_context->cookie.oid << dendl;
+  ldout(cct, 10) << "cookie->hash: " << list_context->cookie.get_hash() << dendl;
+  ldout(cct, 10) << "entries: " << response.entries.size() << dendl;
+  ldout(cct, 10) << "hash range: 0x" << std::hex << list_context->object_hash_low
+    << "-0x" << list_context->object_hash_high << dendl;
+  //ldout(cct, 4) << "cookie->hash BE: " << swab64(list_context->cookie.get_hash()) << dendl;
+  for (std::list<librados::ListObjectImpl>::iterator i = response.entries.begin();
+       i != response.entries.end(); ++i) {
+    std::string nspace = i->get_nspace();
+    std::string oid = i->get_oid();
+    std::string loc = i->get_locator();
+
+    int64_t hash_pos = get_object_hash_position(
+        list_context->pool_id, loc.empty() ? oid : loc, list_context->nspace); 
+
+    ldout(cct, 4) << std::hex << "0x" << hash_pos
+      << std::hex << " 0x" << nibble_twiddle(hash_pos)
+      << std::dec << ": " << oid << dendl;
+
+    // OSD should have respected our initial cookie (FIXME error handle
+    // instead of assert)
+    assert(nibble_twiddle(hash_pos) >= list_context->object_hash_low);
+
+    // Truncate entries at object_hash_high
+    // TODO also check cookie, if it's >object_hash_high then no further request to this PG
+    //if (swab64(hash_pos) > swab64(list_context->object_hash_high)) {
+    if (nibble_twiddle(hash_pos) > list_context->object_hash_high) {
+      ldout(cct, 10) << "Truncating (0x" << std::hex << nibble_twiddle(hash_pos) << " > 0x"
+                     << list_context->object_hash_high << std::dec << ")" << dendl;
+      response.entries.erase(i, response.entries.end());
+      break;
+    }
+  }
+
 
   int response_size = response.entries.size();
   ldout(cct, 20) << " response.entries.size " << response_size
@@ -3195,7 +3257,7 @@ void Objecter::_nlist_reply(NListContext *list_context, int r,
   // if the osd returns 1 (newer code), or no entries, it means we
   // hit the end of the pg.
   if (response_size == 0 || r == 1) {
-    ldout(cct, 20) << " at end of pg" << dendl;
+    ldout(cct, 10) << " at end of pg" << dendl;
     list_context->at_end_of_pg = true;
   } else {
     // there is more for this pg; get it?
