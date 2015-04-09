@@ -478,6 +478,14 @@ protected:
   bool is_quota_bytes_exceeded(Inode *in, int64_t new_bytes);
   bool is_quota_bytes_approaching(Inode *in);
 
+  /**
+   * Call this when an OSDMap is seen with a full flag (global or per pool)
+   * set.
+   *
+   * @param pool the pool ID affected, or -1 if all.
+   */
+  void _handle_full_flag(int64_t pool);
+
  public:
   void set_filer_flags(int flags);
   void clear_filer_flags(int flags);
