@@ -1386,7 +1386,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
   bool write_ordered =
     op->may_write() ||
     op->may_cache() ||
-    (m->get_flags() & CEPH_OSD_FLAG_RWORDERED);
+    m->has_flag(CEPH_OSD_FLAG_RWORDERED);
 
   dout(10) << "do_op " << *m
 	   << (op->may_write() ? " may_write" : "")
@@ -1489,14 +1489,14 @@ void ReplicatedPG::do_op(OpRequestRef& op)
 		m->get_object_locator().nspace);
 
   // io blocked on obc?
-  if (((m->get_flags() & CEPH_OSD_FLAG_FLUSH) == 0) &&
+  if (!m->has_flag(CEPH_OSD_FLAG_FLUSH) &&
       maybe_await_blocked_snapset(oid, op)) {
     return;
   }
 
   int r = find_object_context(
     oid, &obc, can_create,
-    m->get_flags() & CEPH_OSD_FLAG_MAP_SNAP_CLONE,
+    m->has_flag(CEPH_OSD_FLAG_MAP_SNAP_CLONE),
     &missing_oid);
 
   if (r == -EAGAIN) {
@@ -1504,8 +1504,8 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     // CEPH_OSD_FLAG_LOCALIZE_READS set, we just return -EAGAIN. Otherwise,
     // we have to wait for the object.
     if (is_primary() ||
-	(!(m->get_flags() & CEPH_OSD_FLAG_BALANCE_READS) &&
-	 !(m->get_flags() & CEPH_OSD_FLAG_LOCALIZE_READS))) {
+	(!(m->has_flag(CEPH_OSD_FLAG_BALANCE_READS) &&
+	 !(m->has_flag(CEPH_OSD_FLAG_LOCALIZE_READS))))) {
       // missing the specific snap we need; requeue and wait.
       assert(!op->may_write()); // only happens on a read/cache
       wait_for_unreadable_object(missing_oid, op);
@@ -1539,10 +1539,13 @@ void ReplicatedPG::do_op(OpRequestRef& op)
       if (missing_oid != hobject_t() && hit_set->contains(missing_oid))
         in_hit_set = true;
     }
-    hit_set->insert(oid);
-    if (hit_set->is_full() ||
-	hit_set_start_stamp + pool.info.hit_set_period <= m->get_recv_stamp()) {
-      hit_set_persist();
+    if (!op->hitset_inserted) {
+      hit_set->insert(oid);
+      op->hitset_inserted = true;
+      if (hit_set->is_full() ||
+          hit_set_start_stamp + pool.info.hit_set_period <= m->get_recv_stamp()) {
+        hit_set_persist();
+      }
     }
   }
 
@@ -1551,7 +1554,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
       return;
   }
 
-  if ((m->get_flags() & CEPH_OSD_FLAG_IGNORE_CACHE) == 0 &&
+  if (!(m->has_flag(CEPH_OSD_FLAG_IGNORE_CACHE)) &&
       maybe_handle_cache(op, write_ordered, obc, r, missing_oid, false, in_hit_set))
     return;
 
@@ -1573,7 +1576,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
 
   // io blocked on obc?
   if (obc->is_blocked() &&
-      (m->get_flags() & CEPH_OSD_FLAG_FLUSH) == 0) {
+      !m->has_flag(CEPH_OSD_FLAG_FLUSH)) {
     wait_for_blocked_object(obc->obs.oi.soid, op);
     return;
   }
@@ -1706,7 +1709,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
   if (ctx->snapset_obc && !ctx->snapset_obc->obs.exists)
     ctx->snapset_obc = ObjectContextRef();
 
-  if (m->get_flags() & CEPH_OSD_FLAG_SKIPRWLOCKS) {
+  if (m->has_flag(CEPH_OSD_FLAG_SKIPRWLOCKS)) {
     dout(20) << __func__ << ": skipping rw locks" << dendl;
   } else if (m->get_flags() & CEPH_OSD_FLAG_FLUSH) {
     dout(20) << __func__ << ": part of flush, will ignore write lock" << dendl;
@@ -1733,7 +1736,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     return;
   }
 
-  if (m->get_flags() & CEPH_OSD_FLAG_IGNORE_CACHE) {
+  if (m->has_flag(CEPH_OSD_FLAG_IGNORE_CACHE)) {
     ctx->ignore_cache = true;
   }
 
@@ -2031,6 +2034,20 @@ void ReplicatedPG::do_proxy_read(OpRequestRef op)
   ObjectOperation obj_op;
   obj_op.dup(prdop->ops);
 
+  if (pool.info.cache_mode == pg_pool_t::CACHEMODE_WRITEBACK &&
+      (agent_state && agent_state->evict_mode != TierAgentState::EVICT_MODE_FULL)) {
+    for (unsigned i = 0; i < obj_op.ops.size(); i++) {
+      ceph_osd_op op = obj_op.ops[i].op;
+      switch (op.op) {
+	case CEPH_OSD_OP_READ:
+	case CEPH_OSD_OP_SYNC_READ:
+	case CEPH_OSD_OP_SPARSE_READ:
+	  op.flags = (op.flags | CEPH_OSD_OP_FLAG_FADVISE_SEQUENTIAL) &
+		       ~(CEPH_OSD_OP_FLAG_FADVISE_DONTNEED | CEPH_OSD_OP_FLAG_FADVISE_NOCACHE);
+      }
+    }
+  }
+
   C_ProxyRead *fin = new C_ProxyRead(this, soid, get_last_peering_reset(),
 				     prdop);
   ceph_tid_t tid = osd->objecter->read(
@@ -2184,6 +2201,16 @@ void ReplicatedPG::promote_object(ObjectContextRef obc,
     obc = get_object_context(missing_oid, true);
   }
 
+  /*
+   * Before promote complete, if there are  proxy-reads for the object,
+   * for this case we don't use DONTNEED.
+   */
+  unsigned src_fadvise_flags = LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL;
+  map<hobject_t, list<OpRequestRef> >::iterator q = in_progress_proxy_reads.find(obc->obs.oi.soid);
+  if (q == in_progress_proxy_reads.end()) {
+    src_fadvise_flags |= LIBRADOS_OP_FLAG_FADVISE_DONTNEED;
+  }
+
   PromoteCallback *cb = new PromoteCallback(obc, this);
   object_locator_t my_oloc = oloc;
   my_oloc.pool = pool.info.tier_of;
@@ -2191,7 +2218,8 @@ void ReplicatedPG::promote_object(ObjectContextRef obc,
 	     CEPH_OSD_COPY_FROM_FLAG_IGNORE_OVERLAY |
 	     CEPH_OSD_COPY_FROM_FLAG_IGNORE_CACHE |
 	     CEPH_OSD_COPY_FROM_FLAG_MAP_SNAP_CLONE,
-	     obc->obs.oi.soid.snap == CEPH_NOSNAP);
+	     obc->obs.oi.soid.snap == CEPH_NOSNAP,
+	     src_fadvise_flags, 0);
 
   assert(obc->is_blocked());
 
@@ -2216,7 +2244,7 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
 
   if (op->may_write() || op->may_cache()) {
     // snap
-    if (!(m->get_flags() & CEPH_OSD_FLAG_ENFORCE_SNAPC) &&
+    if (!(m->has_flag(CEPH_OSD_FLAG_ENFORCE_SNAPC)) &&
 	pool.info.is_pool_snaps_mode()) {
       // use pool's snapc
       ctx->snapc = pool.snapc;
@@ -2225,7 +2253,7 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
       ctx->snapc.seq = m->get_snap_seq();
       ctx->snapc.snaps = m->get_snaps();
     }
-    if ((m->get_flags() & CEPH_OSD_FLAG_ORDERSNAP) &&
+    if ((m->has_flag(CEPH_OSD_FLAG_ORDERSNAP)) &&
 	ctx->snapc.seq < obc->ssc->snapset.seq) {
       dout(10) << " ORDERSNAP flag set and snapc seq " << ctx->snapc.seq
 	       << " < snapset seq " << obc->ssc->snapset.seq
@@ -5045,7 +5073,9 @@ int ReplicatedPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	  ctx->copy_cb = cb;
 	  start_copy(cb, ctx->obc, src, src_oloc, src_version,
 		     op.copy_from.flags,
-		     false);
+		     false,
+		     op.copy_from.src_fadvise_flags,
+		     op.flags);
 	  result = -EINPROGRESS;
 	} else {
 	  // finish
@@ -5353,7 +5383,8 @@ void ReplicatedPG::make_writeable(OpContext *ctx)
       ctx->new_obs.oi.clear_flag(object_info_t::FLAG_DIRTY);
       --ctx->delta_stats.num_objects_dirty;
       osd->logger->inc(l_osd_tier_clean);
-    } else if (!was_dirty && !ctx->undirty) {
+    } else if (!was_dirty && !ctx->undirty &&
+               pool.info.cache_mode != pg_pool_t::CACHEMODE_NONE) {
       dout(20) << " setting DIRTY flag" << dendl;
       ctx->new_obs.oi.set_flag(object_info_t::FLAG_DIRTY);
       ++ctx->delta_stats.num_objects_dirty;
@@ -5428,8 +5459,6 @@ void ReplicatedPG::make_writeable(OpContext *ctx)
     snap_oi->prior_version = ctx->obs->oi.version;
     snap_oi->copy_user_bits(ctx->obs->oi);
     snap_oi->snaps = snaps;
-    if (was_dirty)
-      snap_oi->set_flag(object_info_t::FLAG_DIRTY);
 
     // prepend transaction to op_t
     PGBackend::PGTransaction *t = pgbackend->get_transaction();
@@ -5439,11 +5468,9 @@ void ReplicatedPG::make_writeable(OpContext *ctx)
     ctx->op_t = t;
     
     ctx->delta_stats.num_objects++;
-    if (snap_oi->is_dirty())
+    if (snap_oi->is_dirty()) {
       ctx->delta_stats.num_objects_dirty++;
-    if (snap_oi->is_whiteout()) {
-      dout(20) << __func__ << " cloning whiteout on " << soid << " to " << coid << dendl;
-      ctx->delta_stats.num_whiteouts++;
+      osd->logger->inc(l_osd_tier_dirty);
     }
     if (snap_oi->is_omap())
       ctx->delta_stats.num_objects_omap++;
@@ -6029,7 +6056,7 @@ int ReplicatedPG::fill_in_copy_get(
 	async_read_started = true;
 	ctx->pending_async_reads.push_back(
 	  make_pair(
-	    boost::make_tuple(cursor.data_offset, left, 0),
+	    boost::make_tuple(cursor.data_offset, left, osd_op.op.flags),
 	    make_pair(&bl, cb)));
 	result = MIN(oi.size - cursor.data_offset, (uint64_t)left);
 	cb->len = result;
@@ -6119,7 +6146,9 @@ int ReplicatedPG::fill_in_copy_get(
 void ReplicatedPG::start_copy(CopyCallback *cb, ObjectContextRef obc,
 			      hobject_t src, object_locator_t oloc,
 			      version_t version, unsigned flags,
-			      bool mirror_snapset)
+			      bool mirror_snapset,
+			      unsigned src_obj_fadvise_flags,
+			      unsigned dest_obj_fadvise_flags)
 {
   const hobject_t& dest = obc->obs.oi.soid;
   dout(10) << __func__ << " " << dest
@@ -6140,7 +6169,8 @@ void ReplicatedPG::start_copy(CopyCallback *cb, ObjectContextRef obc,
   }
 
   CopyOpRef cop(new CopyOp(cb, obc, src, oloc, version, flags,
-			   mirror_snapset));
+			   mirror_snapset, src_obj_fadvise_flags,
+			   dest_obj_fadvise_flags));
   copy_ops[dest] = cop;
   obc->start_block();
 
@@ -6191,6 +6221,7 @@ void ReplicatedPG::_copy_some(ObjectContextRef obc, CopyOpRef cop)
 	      &cop->results.source_omap_digest,
 	      &cop->results.reqids,
 	      &cop->rval);
+  op.set_last_op_flags(cop->src_obj_fadvise_flags);
 
   C_Copyfrom *fin = new C_Copyfrom(this, obc->obs.oi.soid,
 				   get_last_peering_reset(), cop);
@@ -6399,7 +6430,7 @@ void ReplicatedPG::_write_copy_chunk(CopyOpRef cop, PGBackend::PGTransaction *t)
       cop->temp_cursor.data_offset,
       cop->data.length(),
       cop->data,
-      0);
+      cop->dest_obj_fadvise_flags);
     cop->data.clear();
   }
   if (!pool.info.require_rollback()) {
@@ -6531,6 +6562,35 @@ void ReplicatedPG::finish_promote(int r, CopyResults *results,
     return;
   }
 
+  if (r != -ENOENT && soid.is_snap()) {
+    if (results->snaps.empty()) {
+      // we must have read "snap" content from the head object in
+      // the base pool.  use snap_seq to construct what snaps should
+      // be for this clone (what is was before we evicted the clean
+      // clone from this pool, and what it will be when we flush and
+      // the clone eventually happens in the base pool).
+      SnapSet& snapset = obc->ssc->snapset;
+      vector<snapid_t>::iterator p = snapset.snaps.begin();
+      while (p != snapset.snaps.end() && *p > soid.snap)
+	++p;
+      while (p != snapset.snaps.end() && *p > results->snap_seq) {
+	results->snaps.push_back(*p);
+	++p;
+      }
+    }
+
+    dout(20) << __func__ << " snaps " << results->snaps << dendl;
+    filter_snapc(results->snaps);
+
+    dout(20) << __func__ << " filtered snaps " << results->snaps << dendl;
+    if (results->snaps.empty()) {
+      dout(20) << __func__
+	       << " snaps are empty, clone is invalid,"
+	       << " setting r to ENOENT" << dendl;
+      r = -ENOENT;
+    }
+  }
+
   if (r == -ENOENT && results->started_temp_obj) {
     dout(10) << __func__ << " abort; will clean up partial work" << dendl;
     ObjectContextRef tempobc = get_object_context(results->temp_oid, true);
@@ -6635,25 +6695,7 @@ void ReplicatedPG::finish_promote(int r, CopyResults *results,
     tctx->new_obs.oi.user_version = results->user_version;
 
     if (soid.snap != CEPH_NOSNAP) {
-      if (!results->snaps.empty()) {
-	tctx->new_obs.oi.snaps = results->snaps;
-      } else {
-	// we must have read "snap" content from the head object in
-	// the base pool.  use snap_seq to construct what snaps should
-	// be for this clone (what is was before we evicted the clean
-	// clone from this pool, and what it will be when we flush and
-	// the clone eventually happens in the base pool).
-	SnapSet& snapset = obc->ssc->snapset;
-	vector<snapid_t>::iterator p = snapset.snaps.begin();
-	while (p != snapset.snaps.end() && *p > soid.snap)
-	  ++p;
-	assert(p != snapset.snaps.end());
-	do {
-	  tctx->new_obs.oi.snaps.push_back(*p);
-	  ++p;
-	} while (p != snapset.snaps.end() && *p > results->snap_seq);
-      }
-      dout(20) << __func__ << " snaps " << tctx->new_obs.oi.snaps << dendl;
+      tctx->new_obs.oi.snaps = results->snaps;
       assert(!tctx->new_obs.oi.snaps.empty());
       assert(obc->ssc->snapset.clone_size.count(soid.snap));
       assert(obc->ssc->snapset.clone_size[soid.snap] ==
@@ -6953,7 +6995,12 @@ int ReplicatedPG::start_flush(
 		CEPH_OSD_COPY_FROM_FLAG_FLUSH |
 		CEPH_OSD_COPY_FROM_FLAG_IGNORE_OVERLAY |
 		CEPH_OSD_COPY_FROM_FLAG_IGNORE_CACHE |
-		CEPH_OSD_COPY_FROM_FLAG_MAP_SNAP_CLONE);
+		CEPH_OSD_COPY_FROM_FLAG_MAP_SNAP_CLONE,
+		LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL|LIBRADOS_OP_FLAG_FADVISE_NOCACHE);
+
+    //mean the base tier don't cache data after this
+    if (agent_state && agent_state->evict_mode != TierAgentState::EVICT_MODE_FULL)
+      o.set_last_op_flags(LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
   }
   C_Flush *fin = new C_Flush(this, soid, get_last_peering_reset());
 
@@ -7385,7 +7432,7 @@ void ReplicatedPG::issue_repop(RepGather *repop)
   const hobject_t& soid = ctx->obs->oi.soid;
   if (ctx->op &&
     ((static_cast<MOSDOp *>(
-	ctx->op->get_req()))->get_flags() & CEPH_OSD_FLAG_PARALLELEXEC)) {
+	ctx->op->get_req()))->has_flag(CEPH_OSD_FLAG_PARALLELEXEC))) {
     // replicate original op for parallel execution on replica
     assert(0 == "broken implementation, do not use");
   }
