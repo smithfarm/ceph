@@ -243,13 +243,13 @@ the `Git Commit Good Practice`_ article at the `OpenStack Project Wiki`_.
 Architecture
 ============
 
-Ceph is a collection of components built on top of RADOS and provide
+Ceph is a collection of components, built on top of RADOS, that provide
 services (RBD, RGW, CephFS) and APIs (S3, Swift, POSIX) for the user to
 store and retrieve data.
 
-See :doc:`/architecture` for an overview of Ceph architecture. The
-following sections treat each of the major architectural components
-in more detail, with links to code and tests.
+See the separate :doc:`/architecture` article for an overview of Ceph
+architecture. The following sections treat each of the major architectural
+components in more detail, with links to code and tests.
 
 .. FIXME The following are just stubs. These need to be developed into
    detailed descriptions of the various high-level components (RADOS, RGW,
