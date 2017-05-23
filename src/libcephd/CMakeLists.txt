@@ -16,7 +16,6 @@ set(merge_libs
   cephd_cls_kvs
   cephd_rados
   cephd_rbd
-  cephd_rgw
   common
   common_utf8
   erasure_code
@@ -28,6 +27,10 @@ set(merge_libs
   os
   osd
   osdc)
+
+if(WITH_RADOSGW)
+  list(APPEND merge_libs cephd_rgw)
+endif(WITH_RADOSGW)
 
 if(NOT WITH_SYSTEM_ROCKSDB)
   list(APPEND merge_libs ${ROCKSDB_LIBRARIES})
