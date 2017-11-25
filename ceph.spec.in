@@ -84,7 +84,7 @@ Group:		System/Filesystems
 %endif
 URL:		http://ceph.com/
 %if 0%{?fedora} || 0%{?rhel}
-Source0:	https://download.ceph.com/tarballs/@TARBALL_BASENAME@.tar.bz2
+Source:		https://download.ceph.com/tarballs/@TARBALL_BASENAME@.tar.bz2
 %endif
 %if 0%{?suse_version}
 Source0:	@TARBALL_BASENAME@.tar.bz2
