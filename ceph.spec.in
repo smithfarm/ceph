@@ -24,6 +24,7 @@
 %bcond_with make_check
 %ifarch s390 s390x
 %bcond_with tcmalloc
+%bcond_with lttng
 %else
 %bcond_without tcmalloc
 %endif
