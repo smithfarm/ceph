@@ -24,6 +24,7 @@
 %bcond_with make_check
 %ifarch s390 s390x
 %bcond_with tcmalloc
+%bcond_with lttng
 %else
 %bcond_without tcmalloc
 %endif
@@ -33,13 +34,6 @@
 %endif
 %if 0%{?suse_version}
 %bcond_with selinux
-%endif
-
-# LTTng-UST enabled on Fedora, RHEL 6+, and SLE (not openSUSE)
-%if 0%{?fedora} || 0%{?rhel} >= 6 || 0%{?suse_version}
-%if ! 0%{?is_opensuse}
-%bcond_without lttng
-%endif
 %endif
 
 %if %{with selinux}
