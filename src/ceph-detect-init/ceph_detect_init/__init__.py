@@ -72,6 +72,8 @@ def _get_distro(distro, use_rhceph=False):
         'redhat': centos,
         'fedora': fedora,
         'suse': suse,
+        'opensuse': suse,
+        'sles': suse,
         'gentoo': gentoo,
         'funtoo': gentoo,
         'exherbo': gentoo,
