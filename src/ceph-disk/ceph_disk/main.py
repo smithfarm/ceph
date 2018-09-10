@@ -915,7 +915,7 @@ def is_mounted(dev):
             path = fields[1]
             if os.path.isabs(mounts_dev) and os.path.exists(mounts_dev):
                 mounts_dev = os.path.realpath(mounts_dev)
-                if mounts_dev == dev:
+                if _bytes2str(mounts_dev) == dev:
                     return _bytes2str(path)
     return None
 
