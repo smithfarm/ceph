@@ -722,10 +722,11 @@ add_subdirectory(osdc)
 
 add_library(rados_snap_set_diff_obj OBJECT librados/snap_set_diff.cc)
 
+option(WITH_LIBRADOSSTRIPER "build with libradosstriper support" ON)
+
 add_subdirectory(include)
 add_subdirectory(librados)
 
-option(WITH_LIBRADOSSTRIPER "build with libradosstriper support" ON)
 if(WITH_LIBRADOSSTRIPER)
   add_subdirectory(libradosstriper)
 endif()
