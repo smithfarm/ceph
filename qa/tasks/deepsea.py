@@ -300,6 +300,20 @@ class DeepSea(Task):
             raise ConfigError("Unsupported deepsea install method ->{}<-"
                               .format(self.config['install']))
 
+    def _check_config_deploy_health_ok(self, deploy):
+        check_config_key(deploy, 'health-ok', None)
+        deploy_cmdlist = deploy['health-ok']
+        if deploy_cmdlist == None:
+            deploy_cmdlist = [self.health_ok_cmd]
+        if not isinstance(deploy_cmdlist, list):
+            raise ConfigError("deepsea task: health-ok config param takes a list")
+        if not deploy_cmdlist:
+            raise ConfigError("deepsea task: health-ok command list must not be empty")
+        self.log.info("deepsea task: deployment command list: {}"
+                       .format(deploy_cmdlist))
+        deploy['health-ok'] = deploy_cmdlist
+        log.debug("Munged config is {}".format(self.config))
+ 
     def _copy_health_ok(self):
         """
         Copy health-ok.sh from teuthology VM to master_remote
@@ -318,26 +332,12 @@ class DeepSea(Task):
             "health-ok",
             ])
 
-    def _check_config_deploy_health_ok(self, deploy):
-        check_config_key(deploy, 'health-ok', None)
-        deploy_cmdlist = deploy['health-ok']
-        if deploy_cmdlist == None:
-            deploy_cmdlist = [self.health_ok_cmd]
-        if not isinstance(deploy_cmdlist, list):
-            raise ConfigError("deepsea task: health-ok config param takes a list")
-        if not deploy_cmdlist:
-            raise ConfigError("deepsea task: health-ok command list must not be empty")
-        self.log.info("deepsea task: deployment command list: {}"
-                       .format(deploy_cmdlist))
-        deploy['health-ok'] = deploy_cmdlist
-        log.debug("Munged config is {}".format(self.config))
- 
-    def _run_health_ok(self, deploy):
+    def _run_deployment_commands(self, deploy):
+        self._copy_health_ok()
         for cmd in deploy['health-ok']:
+            if cmd.startswith('health-ok.sh'):
+                cmd = "health-ok/" + cmd
             self.master_remote.run(args=[
-                'cd',
-                'health-ok',
-                run.Raw(';'),
                 'sudo',
                 'bash',
                 '-c',
@@ -353,8 +353,7 @@ class DeepSea(Task):
                 self._initialization_sequence()
             else:
                 self.log.warn("deepsea task: skipping initialization sequence")
-            self._copy_health_ok()
-            self._run_health_ok(deploy)
+            self._run_deployment_commands(deploy)
         else:
             self.log.info("deepsea task: deploy config param not given; not deploying Ceph")
 
