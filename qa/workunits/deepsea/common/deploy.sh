@@ -46,7 +46,6 @@ function _initialize_minion_array {
     if type salt-key > /dev/null 2>&1; then
         MINION_LIST=$(salt-key -L -l acc | grep -v '^Accepted Keys')
         for m in $MINION_LIST ; do
-            echo "Adding minion $m to minion array"
             MINION_ARRAY[0]=$m
             i=$((i+1))
         done
@@ -54,21 +53,7 @@ function _initialize_minion_array {
         echo "Cannot find salt-key. Is Salt installed? Is this running on the Salt Master?"
         exit 1
     fi
-    echo "There are $i minions in this Salt cluster"
-}
-
-function _update_salt {
-    # make sure we are running the latest Salt before Stage 0 starts,
-    # otherwise Stage 0 will update Salt and then fail with cryptic
-    # error messages
-    TOTAL_NODES=$(json_total_nodes)
-    salt '*' cmd.run 'zypper -n in -f python3-salt salt salt-api salt-master salt-minion' 2>/dev/null
-    systemctl restart salt-api.service
-    systemctl restart salt-master.service
-    sleep 15
-    salt '*' cmd.run 'systemctl restart salt-minion' 2>/dev/null
-    _ping_minions_until_all_respond "$TOTAL_NODES"
-    salt '*' saltutil.sync_all 2>/dev/null
+    echo $i
 }
 
 function _initialize_storage_profile {
@@ -107,7 +92,8 @@ function _initialize_and_vet_nodes {
     fi
     test "$PROPOSED_MIN_NODES" -gt "$MIN_NODES" && MIN_NODES="$PROPOSED_MIN_NODES"
     echo "Final MIN_NODES is $MIN_NODES"
-    test -n "$TOTAL_NODES" # set in _update_salt
+    echo "TOTAL_NODES is $TOTAL_NODES"
+    test "$TOTAL_NODES"
     test "$TOTAL_NODES" -ge "$MIN_NODES"
     STORAGE_NODES=$((TOTAL_NODES - CLIENT_NODES))
     echo "WWWW"
@@ -132,10 +118,14 @@ function initialization_sequence {
     set +e
     _python_versions
     type deepsea > /dev/null 2>&1 && deepsea --version || echo "deepsea CLI not installed"
-    _initialize_minion_array
+    TOTAL_MINIONS=$(_initialize_minion_array)
+    echo "There are $TOTAL_MINIONS minions in this Salt cluster"
     set -e
     _set_deepsea_minions
-    _update_salt
+    salt '*' saltutil.sync_all 2>/dev/null
+    TOTAL_NODES=$(json_total_nodes)
+    test "$TOTAL_NODES" = "$TOTAL_MINIONS"
+    _ping_minions_until_all_respond
     cat_salt_config
     _initialize_storage_profile
     _initialize_and_vet_nodes
