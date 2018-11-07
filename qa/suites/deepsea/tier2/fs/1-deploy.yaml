@@ -13,7 +13,6 @@ tasks:
         - deepsea.orch:
                 stage: 3
         - deepsea.create_pools:
-                openstack: 
         - deepsea.orch:
                 stage: 4
         - exec:
