@@ -5,6 +5,7 @@ Linter:
     flake8 --max-line-length=100
 """
 import logging
+import re
 import yaml
 
 from salt_manager import SaltManager
@@ -611,6 +612,13 @@ class DeepSea(Task):
         host = role_dict[role_dict.keys()[0]] if role_dict else ''
         return host
 
+    def wait_for_health_ok(self):
+        cmd = 'sudo salt-call wait.until status=HEALTH_OK timeout=900 check=1'
+        if self.quiet_salt:
+            cmd += ' 2> /dev/null'
+        self.master_remote.run(args=cmd)
+        self.master_remote.run(args='sudo ceph -s')
+
     # Teuthology iterates through the tasks stanza twice: once to "execute"
     # the tasks and a second time to "unwind" them. During the first pass
     # it pushes each task onto a stack, and during the second pass it "unwinds"
@@ -833,8 +841,6 @@ class CreatePools(DeepSea):
         deepsea_ctx['logger_obj'] = log.getChild('create_pools')
         self.name = 'deepsea.create_pools'
         super(CreatePools, self).__init__(ctx, config)
-        if not isinstance(self.config, dict):
-            raise ConfigError(self.err_prefix + "config must be a dictionary")
 
     def begin(self):
         self.log.info(anchored("pre-creating pools"))
@@ -846,6 +852,196 @@ class CreatePools(DeepSea):
                 args.append(key)
         args = list(set(args))
         self.scripts.create_all_pools_at_once(*args)
+
+    def teardown(self):
+        pass
+
+
+class CrushMap(DeepSea):
+
+    crush_map = ''
+
+    crush_tree = ''
+
+    err_prefix = "(crushmap subtask) "
+
+    domain_part_regex = re.compile('\..*$')
+
+    def __init__(self, ctx, config):
+        deepsea_ctx['logger_obj'] = log.getChild('crushmap')
+        self.name = 'deepsea.crushmap'
+        super(CrushMap, self).__init__(ctx, config)
+        self.log.info("Initial CRUSH map:")
+        self.crush_map = self.scripts.crush_map()
+        self.log.info("Initial CRUSH tree:")
+        self.crush_tree = self.master_remote.sh("sudo ceph osd crush tree")
+
+    def __lop_off_domain_part(self, fqdn):
+        return self.domain_part_regex.sub('', fqdn)
+
+    def _block_ceph_ports(self, remote):
+        remote.sh('sudo iptables -A INPUT -m multiport -p tcp --dports 6800:7300 -j DROP\n'
+                  'sudo iptables -A OUTPUT -m multiport -p tcp --dports 6800:7300 -j DROP\n')
+
+    def _block_ceph_ports_on_multiple_remotes(self, list_of_remotes):
+        for remote in list_of_remotes:
+            self._block_ceph_ports(remote)
+
+    def _hostnames(self, fqdns):
+        hostnames = []
+        for h in fqdns:
+            hostnames += [self.__lop_off_domain_part(h)]
+        return hostnames
+
+    def _remotes_from_short_hostnames(self, hostnames):
+        result = []
+        for hostname in hostnames:
+            fqdn = hostname + '.teuthology'
+            result += [self.remotes[fqdn]]
+        return result
+
+    def _unblock_ceph_ports(self, remote):
+        remote.sh('sudo iptables -F')
+
+    def _unblock_ceph_ports_on_multiple_remotes(self, list_of_remotes):
+        for remote in list_of_remotes:
+            self._unblock_ceph_ports(remote)
+
+    def _wait_for_bucket_down_reported(self, bucket_type):
+        cmd = ('set -ex\n'
+               'echo "Waiting till {bt} down will become reported" >/dev/null\n'
+               'until sudo ceph -s | grep ".* {bt} .* down"\n'
+               'do\n'
+               '    sleep 30\n'
+               '    sudo ceph -s\n'
+               'done\n').format(bt=bucket_type)
+        write_file(self.master_remote, 'wait_for_bucket_down_reported.sh', cmd)
+        self.master_remote.run(args='timeout 15m bash wait_for_bucket_down_reported.sh')
+        self.master_remote.sh('sudo ceph -s ; sudo ceph osd crush tree')
+
+    def rack_dc_region_unavailability(self):
+        if len(self.storage_nodes) < 4:
+            raise ConfigError(
+                self.err_prefix +
+                'rack_dc_region_unavailability test requires at least 4 storage nodes'
+                )
+        self.log.info("Beginning of rack_dc_region_unavailability test")
+        cmd = ('set -ex\n'
+               'echo "adding rack buckets" >/dev/null\n'
+               'for r in $(seq 1 4) ; do\n'
+               '    sudo ceph osd crush add-bucket rack$r rack\n'
+               'done\n'
+               'echo "moving rack buckets to default root" >/dev/null\n'
+               'for r in $(seq 1 4) ; do\n'
+               '    sudo ceph osd crush move rack$r root=default\n'
+               'done\n')
+        self.master_remote.sh(cmd)
+        hosts = self._hostnames(self.storage_nodes)
+        hosts_t = len(hosts)
+        hosts_m = hosts_t / 2
+        self.log.info("hosts_t == {}, hosts_m == {}".format(hosts_t, hosts_m))
+        cmd = ('set -ex\n'
+               'CRUSH_HOSTS="{hosts}"\n'
+               'echo "move some crush hosts to {rack} (region1)" >/dev/null\n'
+               'for host in "$CRUSH_HOSTS" ; do\n'
+               '    sudo ceph osd crush move $host rack={rack}\n'
+               'done\n'
+               'sudo ceph osd crush tree\n')
+        # region1 (rack1, rack2)
+        region1_hosts = hosts[0:hosts_m]
+        region1_t = len(region1_hosts)
+        region1_m = region1_t / 2
+        self.log.info("region1_t == {}, region1_m == {}".format(region1_t, region1_m))
+        rack1_hosts = region1_hosts[0:region1_m]
+        rack2_hosts = region1_hosts[region1_m:region1_t]
+        self.master_remote.sh(cmd.format(hosts=' '.join(rack1_hosts), rack='rack1'))
+        self.master_remote.sh(cmd.format(hosts=' '.join(rack2_hosts), rack='rack2'))
+        # region2 (rack3, rack4)
+        region2_hosts = hosts[hosts_m:hosts_t]
+        region2_t = len(region2_hosts)
+        region2_m = region2_t / 2
+        self.log.info("region2_t == {}, region2_m == {}".format(region2_t, region2_m))
+        rack3_hosts = region2_hosts[0:region2_m]
+        rack4_hosts = region2_hosts[region2_m:region2_t]
+        self.master_remote.sh(cmd.format(hosts=' '.join(rack3_hosts), rack='rack3'))
+        self.master_remote.sh(cmd.format(hosts=' '.join(rack4_hosts), rack='rack4'))
+        # rack unavailability test
+        rack4_remotes = self._remotes_from_short_hostnames(rack4_hosts)
+        self.log.info("Bringing down rack4, consisting of ->{}<-".format(rack4_hosts))
+        self._block_ceph_ports_on_multiple_remotes(rack4_remotes)
+        self._wait_for_bucket_down_reported('rack')
+        self._unblock_ceph_ports_on_multiple_remotes(rack4_remotes)
+        self.wait_for_health_ok()
+        self.log.info("rack4 is back up")
+        # datacenter (dc) unavailability test
+        cmd = ('set -ex\n'
+               'echo "Simulating datacenter failure" >/dev/null\n'
+               'sudo ceph osd crush add-bucket dc1 datacenter\n'
+               'sudo ceph osd crush add-bucket dc2 datacenter\n'
+               'sudo ceph osd crush move dc1 root=default\n'
+               'sudo ceph osd crush move dc2 root=default\n'
+               'sudo ceph osd crush move rack1 datacenter=dc1\n'
+               'sudo ceph osd crush move rack2 datacenter=dc1\n'
+               'sudo ceph osd crush move rack3 datacenter=dc2\n'
+               'sudo ceph osd crush move rack4 datacenter=dc2\n'
+               'sudo ceph osd crush tree\n')
+        self.master_remote.sh(cmd)
+        region1_remotes = self._remotes_from_short_hostnames(region1_hosts)
+        self.log.info("Bringing down datacenter1, consisting of ->{}<-".format(region1_hosts))
+        self._block_ceph_ports_on_multiple_remotes(region1_remotes)
+        self._wait_for_bucket_down_reported('datacenter')
+        self._unblock_ceph_ports_on_multiple_remotes(region1_remotes)
+        self.wait_for_health_ok()
+        self.log.info("datacenter1 is back up")
+        # region unavailability test
+        cmd = ('set -ex\n'
+               'echo "Simulating region failure" >/dev/null\n'
+               'sudo ceph osd crush add-bucket dc3 datacenter\n'
+               'sudo ceph osd crush add-bucket dc4 datacenter\n'
+               'sudo ceph osd crush add-bucket region1 region\n'
+               'sudo ceph osd crush add-bucket region2 region\n'
+               'sudo ceph osd crush move region1 root=default\n'
+               'sudo ceph osd crush move region2 root=default\n'
+               'sudo ceph osd crush move dc1 region=region1\n'
+               'sudo ceph osd crush move dc2 region=region1\n'
+               'sudo ceph osd crush move dc3 region=region2\n'
+               'sudo ceph osd crush move dc4 region=region2\n'
+               'sudo ceph osd crush move rack2 datacenter=dc2\n'
+               'sudo ceph osd crush move rack3 datacenter=dc3\n'
+               'sudo ceph osd crush move rack4 datacenter=dc4\n'
+               'sudo ceph osd crush tree\n')
+        self.master_remote.sh(cmd)
+        self.log.info("Bringing down region1, consisting of ->{}<-".format(region1_hosts))
+        self._block_ceph_ports_on_multiple_remotes(region1_remotes)
+        self._wait_for_bucket_down_reported('region')
+        self._unblock_ceph_ports_on_multiple_remotes(region1_remotes)
+        self.wait_for_health_ok()
+        self.log.info("region1 is back up")
+        self.log.info("Restoring original CRUSH map")
+        self.master_remote.sh("sudo ceph osd setcrushmap -i crushmap.bin\n"
+                              "sudo ceph osd crush tree\n")
+        self.wait_for_health_ok()
+        self.master_remote.sh("sudo ceph -s")
+        self.log.info("End of rack_dc_region_unavailability test")
+
+    def begin(self):
+        if not self.config:
+            self.log.warning("empty config: nothing to do")
+            return None
+        config_keys = len(self.config)
+        if config_keys > 1:
+            raise ConfigError(
+                self.err_prefix +
+                "config dictionary may contain only one key. "
+                "You provided ->{}<- keys".format(config_keys)
+                )
+        testspec, _ = self.config.items()[0]
+        method = getattr(self, testspec, None)
+        if method:
+            method()
+        else:
+            raise ConfigError(self.err_prefix + "No such CrushMap test ->{}<-"
+                              .format(method))
 
     def teardown(self):
         pass
@@ -984,12 +1180,6 @@ class Orch(DeepSea):
                 "unrecognized Stage ->{}<-".format(self.stage)
                 )
         self.log.debug("munged config is {}".format(self.config))
-
-    def __ceph_health_test(self):
-        cmd = 'sudo salt-call wait.until status=HEALTH_OK timeout=900 check=1'
-        if self.quiet_salt:
-            cmd += ' 2> /dev/null'
-        self.master_remote.run(args=cmd)
 
     def __check_salt_api_service(self):
         base_cmd = 'sudo systemctl status --full --lines={} {}.service'
@@ -1219,7 +1409,7 @@ class Orch(DeepSea):
             )
         self.__dump_lvm_status()
         self.scripts.ceph_cluster_status()
-        self.__ceph_health_test()
+        self.wait_for_health_ok()
 
     def _run_stage_4(self):
         """
@@ -1231,7 +1421,7 @@ class Orch(DeepSea):
         self.__log_stage_start(stage)
         self._run_orch(("stage", stage))
         self.__maybe_cat_ganesha_conf()
-        self.__ceph_health_test()
+        self.wait_for_health_ok()
 
     def _run_stage_5(self):
         """
@@ -1787,7 +1977,7 @@ echo "According to \"ceph --version\", the ceph upstream version is ->$CEPH_CEPH
 test -n "$RPM_CEPH_VERSION"
 test "$RPM_CEPH_VERSION" = "$CEPH_CEPH_VERSION"
 """,
-        "rados_write_test": """Write a RADOS object and read it back
+        "rados_write_test": """# Write a RADOS object and read it back
 #
 # NOTE: function assumes the pool "write_test" already exists. Pool can be
 # created by calling e.g. "create_all_pools_at_once write_test" immediately
@@ -1799,6 +1989,11 @@ echo "dummy_content" > verify.txt
 rados -p write_test put test_object verify.txt
 rados -p write_test get test_object verify_returned.txt
 test "x$(cat verify.txt)" = "x$(cat verify_returned.txt)"
+""",
+        "crush_map": """# Dump the CRUSH map
+ceph osd getcrushmap -o crushmap.bin 2>&1 >/dev/null
+crushtool -d crushmap.bin -o crushmap.txt 2>&1 >/dev/null
+cat crushmap.txt
 """,
         }
 
@@ -1828,6 +2023,10 @@ test "x$(cat verify.txt)" = "x$(cat verify_returned.txt)"
             self.script_dict["create_all_pools_at_once"],
             args=args,
             )
+
+    def crush_map(self, *args, **kwargs):
+        write_file(self.master_remote, 'crush_map.sh', self.script_dict["crush_map"])
+        return self.master_remote.sh('sudo bash crush_map.sh')
 
     def custom_storage_profile(self, *args, **kwargs):
         sourcefile = args[0]
@@ -2020,6 +2219,7 @@ class Validation(DeepSea):
 task = DeepSea
 ceph_conf = CephConf
 create_pools = CreatePools
+crushmap = CrushMap
 dummy = Dummy
 health_ok = HealthOK
 orch = Orch
