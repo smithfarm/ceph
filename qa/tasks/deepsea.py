@@ -282,19 +282,12 @@ class DeepSea(Task):
         """
         Set deepsea_minions pillar value
         """
-        echo_cmd = (
-            'echo "deepsea_minions: \'*\'" > '
-            '/srv/pillar/ceph/deepsea_minions.sls'
-        )
-        self.master_remote.run(args=[
-            'sudo',
-            'sh',
-            '-c',
-            echo_cmd,
-            run.Raw(';'),
-            'cat',
-            '/srv/pillar/ceph/deepsea_minions.sls',
-            ])
+        deepsea_minions_sls = '/srv/pillar/ceph/deepsea_minions.sls'
+        content = "deepsea_minions: \'*\'"
+        self.log.info("Clobbering {} with content ->{}<-".format(
+            deepsea_minions_sls, content))
+        cmd = 'sudo tee {}'.format(deepsea_minions_sls)
+        self.master_remote.sh(cmd, stdin=content)
 
     def _deepsea_version(self):
         if self.deepsea_cli:
@@ -509,10 +502,10 @@ class DeepSea(Task):
     def _maybe_apply_alternative_defaults(self):
         global_yml = '/srv/pillar/ceph/stack/global.yml'
         if self.alternative_defaults:
+            self.log.info(anchored("Applying alternative defaults"))
             data = ''
             for k, v in self.alternative_defaults.items():
                 data += "{}: {}\n".format(k, v)
-                self.log.info("Applying alternative default {}: {}".format(k, v))
             if data:
                 sudo_append_to_file(
                     self.master_remote,
@@ -525,7 +518,7 @@ class DeepSea(Task):
         deepsea_ctx['roles'] = self.ctx.config['roles']
         deepsea_ctx['alternative_defaults'] = self.config.get('alternative_defaults', {})
         if not isinstance(deepsea_ctx['alternative_defaults'], dict):
-            raise ConfigError(self.err_prefix + "alternative_defaults must be a list")
+            raise ConfigError(self.err_prefix + "alternative_defaults must be a dict")
         deepsea_ctx['cli'] = self.config.get('cli', True)
         deepsea_ctx['dashboard_ssl'] = self.config.get('dashboard_ssl', True)
         deepsea_ctx['log_anchor'] = self.config.get('log_anchor', self.log_anchor_str)
@@ -713,6 +706,8 @@ class CephConf(DeepSea):
 
     deepsea_configuration_files = '/srv/salt/ceph/configuration/files'
 
+    err_prefix = "(ceph_conf subtask) "
+
     targets = {
         "mon_allow_pool_delete": True,
         "small_cluster": True,
@@ -832,19 +827,14 @@ class CephConf(DeepSea):
 
 class CreatePools(DeepSea):
 
+    err_prefix = "(create_pools subtask) "
+
     def __init__(self, ctx, config):
         deepsea_ctx['logger_obj'] = log.getChild('create_pools')
         self.name = 'deepsea.create_pools'
         super(CreatePools, self).__init__(ctx, config)
         if not isinstance(self.config, dict):
-            raise ConfigError(
-                "(create_pools subtask) config must be a dictionary"
-                )
-        self.config = {
-            "mds": self.config.get("mds", False),
-            "openstack": self.config.get("openstack", False),
-            "rbd": self.config.get("rbd", False),
-            }
+            raise ConfigError(self.err_prefix + "config must be a dictionary")
 
     def begin(self):
         self.log.info(anchored("pre-creating pools"))
@@ -854,8 +844,6 @@ class CreatePools(DeepSea):
                 self.config[key] = True
             if self.config[key]:
                 args.append(key)
-        if 'mds' in self.role_lookup_table:
-            args.append('mds')
         args = list(set(args))
         self.scripts.create_all_pools_at_once(*args)
 
@@ -880,11 +868,6 @@ class Dummy(DeepSea):
         pass
 
 
-class Deploy:
-
-    pass
-
-
 class HealthOK(DeepSea):
     """
     Copy health_ok.sh to Salt Master node and run commands.
@@ -897,6 +880,8 @@ class HealthOK(DeepSea):
 
     The list of commands will be executed as root on the Salt Master node.
     """
+
+    err_prefix = "(health_ok subtask) "
 
     prefix = 'health-ok/'
 
@@ -928,9 +913,9 @@ class HealthOK(DeepSea):
             return None
         for cmd_str in commands:
             if not isinstance(cmd_str, str):
-                raise ConfigError((
-                    "(health_ok subtask) commands must be a list of strings. "
-                    "Non-string command ->{}<- found!").format(cmd_str)
+                raise ConfigError(
+                    self.err_prefix +
+                    "command ->{}<- is not a string".format(cmd_str)
                     )
             if cmd_str.startswith('health-ok.sh'):
                 cmd_str = self.prefix + cmd_str
@@ -952,9 +937,7 @@ class HealthOK(DeepSea):
     def begin(self):
         commands = self.config.get('commands', [])
         if not isinstance(commands, list):
-            raise ConfigError(
-                "(health_ok subtask) commands must be a list of strings"
-                )
+            raise ConfigError(self.err_prefix + "commands must be a list")
         self._maybe_run_commands(commands)
 
     def teardown(self):
@@ -968,6 +951,8 @@ class Orch(DeepSea):
         "4", "services", "5", "removal", "cephfs", "ganesha", "iscsi",
         "openattic", "openstack", "radosgw", "validate"
         ]
+
+    err_prefix = "(orch subtask) "
 
     stage_synonyms = {
         0: 'prep',
@@ -989,12 +974,14 @@ class Orch(DeepSea):
         self.survive_reboots = self._detect_reboots()
         if not self.stage and not self.state_orch:
             raise ConfigError(
-                "(orch subtask) nothing to do. Specify a value for 'stage' or "
+                self.err_prefix +
+                "nothing to do. Specify a value for 'stage' or "
                 "'state_orch' key in config dict"
                 )
         if self.stage and self.stage not in self.all_stages:
             raise ConfigError(
-                "(orch subtask) unrecognized Stage ->{}<-".format(self.stage)
+                self.err_prefix +
+                "unrecognized Stage ->{}<-".format(self.stage)
                 )
         self.log.debug("munged config is {}".format(self.config))
 
@@ -1012,6 +999,24 @@ class Orch(DeepSea):
             self.master_remote.run(args=base_cmd.format('100', 'salt-api'))
             raise
         self.scripts.salt_api_test()
+
+    def __dump_lvm_status(self):
+        """
+        Run "pvs --all", "vgs --all", and "lvs --all" on all storage nodes.
+        """
+        self.log.info("Dumping LVM status on storage nodes ->{}<-"
+                      .format(self.storage_nodes))
+        lvm_status_script = ("set -ex\n"
+                             "pvs --all\n"
+                             "vgs --all\n"
+                             "lvs --all\n")
+        for hostname in self.storage_nodes:
+            remote = self.remotes[hostname]
+            remote_run_script_as_root(
+                remote,
+                'lvm_status.sh',
+                lvm_status_script,
+                )
 
     def __is_stage_between_0_and_5(self):
         """
@@ -1033,24 +1038,6 @@ class Orch(DeepSea):
             "Running DeepSea Stage {} ({})"
             .format(stage, self.stage_synonyms[stage])
             ))
-
-    def __lvm_status(self):
-        """
-        Run "pvs --all", "vgs --all", and "lvs --all" on all storage nodes.
-        """
-        self.log.info("Dumping LVM status on storage nodes ->{}<-"
-                      .format(self.storage_nodes))
-        lvm_status_script = ("set -ex\n"
-                             "pvs --all\n"
-                             "vgs --all\n"
-                             "lvs --all\n")
-        for hostname in self.storage_nodes:
-            remote = self.remotes[hostname]
-            remote_run_script_as_root(
-                remote,
-                'lvm_status.sh',
-                lvm_status_script,
-                )
 
     def __maybe_cat_ganesha_conf(self):
         ganesha_host = self.role_type_present('ganesha')
@@ -1124,8 +1111,8 @@ class Orch(DeepSea):
             orch_spec = 'ceph.stage.{}'.format(orch_spec)
         else:
             raise ConfigError(
-                "(orch subtask) Unrecognized orchestration type ->{}<-"
-                .format(orch_type)
+                self.err_prefix +
+                "Unrecognized orchestration type ->{}<-".format(orch_type)
                 )
         cmd_str = None
         if self.deepsea_cli:
@@ -1230,7 +1217,7 @@ class Orch(DeepSea):
             'cat /etc/ceph/ceph.conf',
             abort_on_fail=False
             )
-        self.__lvm_status()
+        self.__dump_lvm_status()
         self.scripts.ceph_cluster_status()
         self.__ceph_health_test()
 
@@ -1288,7 +1275,8 @@ class Orch(DeepSea):
             self._run_orch(("stage", self.stage))
         else:
             raise ConfigError(
-                '(orch subtask) unsupported stage ->{}<-'.format(self.stage)
+                self.err_prefix +
+                'unsupported stage ->{}<-'.format(self.stage)
                 )
 
     def teardown(self):
@@ -1504,6 +1492,9 @@ class Script(DeepSea):
                       - 'foo'
                       - 'bar'
     """
+
+    err_prefix = '(script subtask) '
+
     def __init__(self, ctx, config):
         deepsea_ctx['logger_obj'] = log.getChild('script')
         self.name = 'deepsea.script'
@@ -1515,7 +1506,7 @@ class Script(DeepSea):
         if method:
             method(*args, **kwargs)
         else:
-            raise ConfigError("(script subtask) No such canned script ->{}<-"
+            raise ConfigError(self.err_prefix + "No such canned script ->{}<-"
                               .format(method))
 
     def begin(self):
@@ -1525,19 +1516,22 @@ class Script(DeepSea):
         config_keys = len(self.config)
         if config_keys > 1:
             raise ConfigError(
-                "(script subtask) config dictionary may contain only one key. "
+                self.err_prefix +
+                "config dictionary may contain only one key. "
                 "You provided ->{}<- keys".format(config_keys)
                 )
         script, script_dict = self.config.items()[0]
         if script_dict is None:
             args = []
         if isinstance(script_dict, dict):
-            err_msg = '(script subtask) script dicts may only contain one key (args)'
             if len(script_dict) > 1 or script_dict.keys()[0] != 'args':
-                raise ConfigError(err_msg)
+                raise ConfigError(
+                    self.err_prefix +
+                    'script dicts may only contain one key (args)'
+                    )
             args = script_dict.values()[0] or []
             if not isinstance(args, list):
-                raise ConfigError('(script subtask) script args must be a list')
+                raise ConfigError(self.err_prefix + 'script args must be a list')
         self._run_script(script, args=args)
 
     def teardown(self):
@@ -1589,59 +1583,56 @@ function create_all_pools_at_once {
     ceph osd pool ls detail
 }
 #
-MDS=""
+CEPHFS=""
 OPENSTACK=""
 RBD=""
+OTHER=""
 for arg in "$@" ; do
     arg="${arg,,}"
     case "$arg" in
-        mds) MDS="$arg" ;;
+        cephfs) CEPHFS="$arg" ;;
         openstack) OPENSTACK="$arg" ;;
         rbd) RBD="$arg" ;;
+        *) OTHER+=" $arg" ;;
     esac
 done
 #
-POOLS="write_test"
-test "$MDS" && POOLS+=" cephfs_data cephfs_metadata"
+POOLS=""
+if [ $CEPHFS ] ; then
+    POOLS+=" cephfs_data cephfs_metadata"
+fi
 if [ "$OPENSTACK" ] ; then
-    ADD_POOLS="smoketest-cloud-backups
-smoketest-cloud-volumes
-smoketest-cloud-images
-smoketest-cloud-vms
-cloud-backups
-cloud-volumes
-cloud-images
-cloud-vms
-"
-    for add_pool in $ADD_POOLS ; do
-        POOLS+=" $add_pool"
+    POOLS+=" smoketest-cloud-backups smoketest-cloud-volumes smoketest-cloud-images"
+    POOLS+=" smoketest-cloud-vms cloud-backups cloud-volumes cloud-images cloud-vms"
+fi
+if [ "$RBD" ] ; then
+    POOLS+=" rbd"
+fi
+if [ "$OTHER" ] ; then
+    POOLS+="$OTHER"
+    APPLICATION_ENABLE="$OTHER"
+fi
+if [ -z "$POOLS" ] ; then
+    echo "create_all_pools_at_once: bad arguments"
+    exit 1
+fi
+echo "About to create pools ->$POOLS<-"
+create_all_pools_at_once $POOLS
+if [ "$APPLICATION_ENABLE" ] ; then
+    for pool in "$APPLICATION_ENABLE" ; do
+        ceph osd pool application enable $pool deepsea_qa
     done
 fi
-test "$RBD" && POOLS+=" rbd"
-create_all_pools_at_once $POOLS
-ceph osd pool application enable write_test deepsea_qa
-""",
-        "disable_update_in_stage_0": """# Disable update in Stage 0
-set -ex
-cp /srv/salt/ceph/stage/prep/master/default.sls \
-   /srv/salt/ceph/stage/prep/master/default-orig.sls
-cp /srv/salt/ceph/stage/prep/master/default-no-update-no-reboot.sls \
-   /srv/salt/ceph/stage/prep/master/default.sls
-cp /srv/salt/ceph/stage/prep/minion/default.sls \
-   /srv/salt/ceph/stage/prep/minion/default-orig.sls
-cp /srv/salt/ceph/stage/prep/minion/default-no-update-no-reboot.sls \
-   /srv/salt/ceph/stage/prep/minion/default.sls
 """,
         "salt_api_test": """# Salt API test script
 set -e
 TMPFILE=$(mktemp)
-echo "Salt API test: BEGIN"
-curl http://$(hostname):8000/ | tee $TMPFILE # show curl output in log
+curl --silent http://$(hostname):8000/ | tee $TMPFILE # show curl output in log
 test -s $TMPFILE
 jq . $TMPFILE >/dev/null
 echo -en "\\n" # this is just for log readability
 rm $TMPFILE
-echo "Salt API test: END"
+echo "Salt API test passed"
 """,
         "rgw_init": """# Set up RGW
 set -ex
@@ -1779,6 +1770,36 @@ curl --insecure --silent $URL 2>&1 > dashboard.html
 test -s dashboard.html
 file dashboard.html | grep "HTML document"
 """,
+        "ceph_version_sanity": """# Ceph version sanity test
+# test that ceph RPM version matches "ceph --version"
+# for a loose definition of "matches"
+set -ex
+rpm -q ceph
+RPM_NAME=$(rpm -q ceph)
+RPM_CEPH_VERSION=$(perl -e '"'"$RPM_NAME"'" =~ m/ceph-(\d+\.\d+\.\d+)/; print "$1\n";')
+echo "According to RPM, the ceph upstream version is ->$RPM_CEPH_VERSION<-" >/dev/null
+test -n "$RPM_CEPH_VERSION"
+ceph --version
+BUFFER=$(ceph --version)
+CEPH_CEPH_VERSION=$(perl -e '"'"$BUFFER"'" =~ m/ceph version (\d+\.\d+\.\d+)/; print "$1\n";')
+echo "According to \"ceph --version\", the ceph upstream version is ->$CEPH_CEPH_VERSION<-" \
+    >/dev/null
+test -n "$RPM_CEPH_VERSION"
+test "$RPM_CEPH_VERSION" = "$CEPH_CEPH_VERSION"
+""",
+        "rados_write_test": """Write a RADOS object and read it back
+#
+# NOTE: function assumes the pool "write_test" already exists. Pool can be
+# created by calling e.g. "create_all_pools_at_once write_test" immediately
+# before calling this function.
+#
+set -ex
+ceph osd pool application enable write_test deepsea_qa
+echo "dummy_content" > verify.txt
+rados -p write_test put test_object verify.txt
+rados -p write_test get test_object verify_returned.txt
+test "x$(cat verify.txt)" = "x$(cat verify_returned.txt)"
+""",
         }
 
     def __init__(self, master_remote, logger):
@@ -1790,6 +1811,13 @@ file dashboard.html | grep "HTML document"
             self.master_remote,
             'ceph_cluster_status.sh',
             self.script_dict["ceph_cluster_status"],
+            )
+
+    def ceph_version_sanity(self, *args, **kwargs):
+        remote_run_script_as_root(
+            self.master_remote,
+            'ceph_version_sanity.sh',
+            self.script_dict["ceph_version_sanity"],
             )
 
     def create_all_pools_at_once(self, *args, **kwargs):
@@ -1810,13 +1838,6 @@ file dashboard.html | grep "HTML document"
             args=[proposals_dir, sourcefile],
             )
 
-    def disable_update_in_stage_0(self, *args, **kwargs):
-        remote_run_script_as_root(
-            self.master_remote,
-            'disable_update_in_stage_0.sh',
-            self.script_dict["disable_update_in_stage_0"],
-            )
-
     def mgr_dashboard_module_smoke(self, *args, **kwargs):
         remote_run_script_as_root(
             self.master_remote,
@@ -1832,6 +1853,13 @@ file dashboard.html | grep "HTML document"
             'proposals_remove_storage_only_node.sh',
             self.script_dict["proposals_remove_storage_only_node"],
             args=[proposals_dir, storage_profile, hostname],
+            )
+
+    def rados_write_test(self, *args, **kwargs):
+        remote_run_script_as_root(
+            self.master_remote,
+            'rados_write_test.sh',
+            self.script_dict["rados_write_test"],
             )
 
     def remove_storage_only_node(self, *args, **kwargs):
@@ -1874,12 +1902,12 @@ class Validation(DeepSea):
     (methods to be run) and the values are the config dictionaries of each test
     to be run.
 
-    Basic validation tests are triggered by default, while others have to be
-    explicitly mentioned in the YAML:
+    Validation tests with lines like this
 
-    systemd_units_active    (triggered by default) validates that the systemd
-                            units corresponding to the teuthology roles
-                            stanza are active on the respective test nodes
+        self._apply_config_default("foo_test", None)
+
+    are triggered by default, while others have to be explicitly mentioned in
+    the YAML.
     """
 
     err_prefix = '(validation subtask) '
@@ -1888,6 +1916,7 @@ class Validation(DeepSea):
         deepsea_ctx['logger_obj'] = log.getChild('validation')
         self.name = 'deepsea.validation'
         super(Validation, self).__init__(ctx, config)
+        self._apply_config_default("ceph_version_sanity", None)
         self._apply_config_default("mgr_dashboard_module_smoke", None)
         self._apply_config_default("rados_striper", None)
         self._apply_config_default("systemd_units_active", None)
@@ -1897,6 +1926,9 @@ class Validation(DeepSea):
         Use to activate tests that should always be run.
         """
         self.config[validation_test] = self.config.get(validation_test, default_config)
+
+    def ceph_version_sanity(self, **kwargs):
+        self.scripts.ceph_version_sanity()
 
     def mgr_dashboard_module_smoke(self, **kwargs):
         """
@@ -1919,6 +1951,9 @@ class Validation(DeepSea):
             assert '--striper' not in output, \
                 "ceph is compiled with libradosstriper"
         self.log.info("OK")
+
+    def rados_write_test(self, **kwargs):
+        self.scripts.rados_write_test()
 
     def systemd_units_active(self, **kwargs):
         """
@@ -1954,7 +1989,6 @@ class Validation(DeepSea):
                     self.log.debug("Ignoring role_type {} which has no associated "
                                    "systemd unit".format(role_type))
             if run_script:
-                self.log.debug("About to run:\n" + script)
                 remote_run_script_as_root(
                     remote,
                     "systemd_validation.sh",
@@ -1968,8 +2002,10 @@ class Validation(DeepSea):
             kwargs = {} if not kwargs else kwargs
             if not isinstance(kwargs, dict):
                 raise ConfigError(self.err_prefix + "Method config must be a dict")
-            self.log.debug("Test {} has config ->{}<-"
-                           .format(method_spec, kwargs))
+            self.log.info(anchored(
+                "Running validation test {} with config ->{}<-"
+                .format(method_spec, kwargs)
+                ))
             method = getattr(self, method_spec, None)
             if method:
                 method(**kwargs)
@@ -1984,7 +2020,6 @@ class Validation(DeepSea):
 task = DeepSea
 ceph_conf = CephConf
 create_pools = CreatePools
-deploy = Deploy
 dummy = Dummy
 health_ok = HealthOK
 orch = Orch
