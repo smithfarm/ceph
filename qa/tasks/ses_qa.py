@@ -8,6 +8,7 @@ import logging
 
 from salt_manager import SaltManager
 from scripts import Scripts
+from util import get_remote_for_role
 
 from teuthology.exceptions import (
     ConfigError,
@@ -143,5 +144,26 @@ class Validation(SESQA):
                                   .format(method_spec))
 
 
+class Complicated(SESQA):
+
+    err_prefix = "(complicated subtask) "
+
+    def __init__(self, ctx, config):
+        global ses_qa_ctx
+        ses_qa_ctx['logger_obj'] = log.getChild('complicated')
+        self.name = 'ses_qa.complicated'
+        super(Complicated, self).__init__(ctx, config)
+        self.log.debug("munged config is {}".format(self.config))
+
+    def begin(self):
+        self.log.debug("Beginning complicated test")
+        remote = get_remote_for_role(self.ctx, 'client.salt_master')
+        remote.sh('echo $((2+2))')
+        remote = get_remote_for_role(self.ctx, 'node.1')
+        remote.sh('echo "Hello, world! IANAL."')
+        self.log.debug("End complicated test")
+
+
 task = SESQA
+complicated = Complicated
 validation = Validation
