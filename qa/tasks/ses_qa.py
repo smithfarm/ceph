@@ -152,6 +152,7 @@ class Complicated(SESQA):
         global ses_qa_ctx
         ses_qa_ctx['logger_obj'] = log.getChild('complicated')
         self.name = 'ses_qa.complicated'
+        self.log.debug(ctx)
         super(Complicated, self).__init__(ctx, config)
         self.log.debug("munged config is {}".format(self.config))
 
