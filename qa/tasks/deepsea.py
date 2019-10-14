@@ -1915,6 +1915,14 @@ class Validation(DeepSea):
                 'iscsi_smoke_test.sh',
                 )
 
+    def dpolom_test(self, **kwargs):
+            args = []
+            self.scripts.run(
+                self.master_remote,
+                'dpolom_test.sh',
+                args=args
+                )
+
     def rados_striper(self, **kwargs):
         """
         Verify that rados does not has the --striper option

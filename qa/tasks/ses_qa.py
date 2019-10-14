@@ -157,6 +157,31 @@ class Validation(SESQA):
                 args=[osd_id]
                 )
 
+    def ses_rack_dc_region_unavailability(self, **kwargs):
+        """
+        Simulates rack, DC and region unavailability by 
+        modifying Ceph crushmap
+        """
+        self.scripts.run(
+                self.master_remote,
+                'ses_rack_dc_region_unavailability.sh',
+                )
+    
+    def ses_network_failure(self, **kwargs):
+        """
+        Simulates network failure using tc netem tool
+        """
+        self.scripts.run(
+                self.master_remote,
+                'ses_network_failure.sh',
+                )
+
+    def ses6_ceph_dashboard(self, **kwargs):
+        self.scripts.run(
+                self.master_remote,
+                'ses6_ceph_dashboard.sh',
+                )
+
     def drive_replace_check(self, **kwargs):
         """
         Deepsea drive replacement after check
