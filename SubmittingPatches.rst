@@ -9,8 +9,8 @@ Patches to Ceph can be divided into three categories:
     3. patches targeting stable branches (e.g.: "nautilus")
 
 Some parts of Ceph - notably the RBD and CephFS kernel clients - are maintained
-within the Linux Kernel. For patches targeting this code, please refer to the
-file ``SubmittingPatches-kernel.rst``.
+within the Linux Kernel. For patches targeting this code, refer to the file
+``SubmittingPatches-kernel.rst``.
 
 The rest of this document assumes that your patch relates to Ceph code that is
 maintained in the GitHub repository https://github.com/ceph/ceph
@@ -20,8 +20,8 @@ If you have a patch that fixes an issue, feel free to open a GitHub pull request
 contains important information for ensuring that your PR passes code review
 smoothly.
 
-For patches targeting stable branches (e.g. "nautilus"), please also see
-the file ``SubmittingPatches-backports.rst``.
+For patches targeting stable branches (e.g. "nautilus"), see also the file
+``SubmittingPatches-backports.rst``.
 
 .. contents::
    :depth: 3
@@ -66,7 +66,7 @@ then you just add a line saying ::
 
         Signed-off-by: Random J Developer <random@developer.example.org>
 
-using your real name (sorry, no pseudonyms or anonymous contributions.)
+using your real name (sorry, no pseudonyms or anonymous contributions).
 
 Git can sign off on your behalf
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -104,20 +104,21 @@ might change the calculus, because smaller commits are easier to backport.)
 Describe your changes
 ---------------------
 
-Each commit has an associated commit message that is stored in git. The first
-line of the commit message is the `commit title`_. The second line should be
-left blank. The lines that follow constitute the `commit message`_.
+Each commit has an associated commit message that is stored in the git history.
+The first line of the commit message is the `commit title`_. The second line
+should be left blank. The lines that follow constitute the `commit message`_.
 
-A commit and its message should be focused around a particular change.
+All aspects of a commit - content, title and message - should be focused around
+a particular change.
 
 Commit title
 ^^^^^^^^^^^^
 
-The text up to the first empty line in a commit message is the commit
-title. It should be a single short line of at most 72 characters,
-summarizing the change, and prefixed with the
-subsystem or module you are changing. Also, it is conventional to use the
-imperative mood in the commit title. Positive examples include::
+The text up to the first empty line in a commit message is the commit title. It
+should be a single short line of at most 72 characters, summarizing the change,
+and prefixed with the subsystem or module you are changing. Also, it is
+conventional to use the imperative mood in the commit title. Positive examples
+include::
 
      mds: add perf counter for finisher of MDSRank
      osd: make the ClassHandler::mutex private
@@ -138,12 +139,12 @@ Further to the last negative example ("fix issue 99999"), see `Fixes line`_.
 Commit message
 ^^^^^^^^^^^^^^
 
-(This section is about the body of the commit message. Please also see
-the preceding section, `Commit title`_, for advice on titling commit messages.)
+(This section is about the body of the commit message. Refer to the preceding
+section, `Commit title`_, for advice on titling commit messages.)
 
 In the body of your commit message, be as specific as possible. If the commit
-message title was too short to fully state what the commit is doing, use the
-body to explain not just the "what", but also the "why".
+title was too short to fully state what the commit is doing, use the body to
+explain not just the "what", but also the "why".
 
 For positive examples, peruse ``git log`` in the ``master`` branch. A negative
 example would be a commit message that merely states the obvious. For example:
@@ -177,8 +178,8 @@ Here is an example showing a properly-formed commit message::
      Fixes: http://tracker.ceph.com/issues/12345
      Signed-off-by: Random J Developer <random@developer.example.org>
 
-If a commit fixes a regression introduced by a different commit, please also
-(in addition to the above) add a line referencing the SHA1 of the commit that
+If a commit fixes a regression introduced by a different commit, also (in
+addition to the above) add a line referencing the SHA1 of the commit that
 introduced the regression. For example::
 
      Fixes: 9dbe7a003989f8bb45fe14aaa587e9d60a392727
@@ -192,7 +193,8 @@ https://github.com/ceph/ceph.git - do not push branches directly to
 ``ceph/ceph.git``.
 
 PRs should target "master". If you need to add a patch to a stable branch, such
-as "nautilus", see the file ``SubmittingPatches-backports.rst``.
+as "nautilus", read the file ``SubmittingPatches-backports.rst`` before opening
+a PR.
 
 In addition to a base, or "target" branch, PRs have several other components:
 the `PR title`_, the `PR description`_, labels, comments, etc. Of these, the PR
@@ -203,16 +205,17 @@ PR title
 
 If your PR has only one commit, the PR title can be the same as the commit title
 (and GitHub will suggest this). If the PR has multiple commits, do not accept
-the title GitHub suggest. Either use the title of the most relevant commit, or
-write your own title. In the latter case, use the same "subsystem: short
-description" convention described in `Commit title`_ for the PR title, with
-the following difference: the PR title describes the entire set of changes,
-while the `Commit title`_ describes only the changes in a particular commit. 
+the title that GitHub suggests. Instead, either use the title of the most
+relevant commit, or write your own title. In the latter case, use the same
+"subsystem: short description" convention described in `Commit title`_ for the
+PR title, with the following difference: the PR title describes the entire set
+of changes, while the `Commit title`_ describes only the changes in a particular
+commit.
 
-Keep in mind that the PR titles feed directly into the script that generates
-release notes and it is tedious to clean up non-conformant PR titles at release
-time. This document places no limit on the length of PR titles, but be aware
-that they are subject to editing as part of the release process.
+Note: the PR titles feed directly into the script that generates release notes
+and it is tedious to clean up non-conformant PR titles at release time. This
+document places no limit on the length of PR titles, but be aware that they are
+subject to editing as part of the release process.
 
 PR description
 ^^^^^^^^^^^^^^
@@ -240,18 +243,19 @@ and fill out the Backport field in the tracker issue. For example::
 
     Backport: mimic, nautilus
 
-For information on how backports are done in the Ceph project, refer to the
-document ``SubmittingPatches-backports.rst``.
+For information on how the Ceph project handles backports, refer to the document
+``SubmittingPatches-backports.rst``.
 
 
 Test your changes
 -----------------
 
-Before opening your PR, it's a good idea to run tests on your patchset. Doing
-that is simple, though the process can take a long time to complete, especially
-on older machines with less memory and spinning disks.
+Before opening your PR, it's a good idea to run tests on your patchset, or "wip
+branch" ("wip" stands for "work in progress"). Doing that is simple, though the
+process can take a long time to complete - especially on older machines with
+less memory and spinning disks.
 
-The most simple test is to verify that your patchset builds, at least in your
+The most simple test is to verify that your wip branch builds, at least in your
 own development environment. The commands for this are::
 
     ./install-deps.sh
@@ -264,13 +268,13 @@ following command::
 
     ./run-make-check.sh
 
-If your patchset does not build, or if one or more of the "make check" tests
-fails, but the error shown is not obviously related to your patchset, don't let
+If your branch does not build, or if one or more of the "make check" tests
+fails, but the error shown is not obviously related to your changes, don't let
 that dissuade you from opening a PR. The Ceph project has a Jenkins instance
 which will build your PR branch and run "make check" on it in a controlled
 environment.
 
-Once your patchset builds and passes "make check", you can run even more tests
+Once your branch builds and passes "make check", you can run even more tests
 on it by issuing the following commands::
 
     cd build
@@ -279,8 +283,12 @@ on it by issuing the following commands::
 Like "make check", the standalone tests take a long time to run. They also
 produce voluminous output. If one or more of the standalone tests fails, it's
 likely the relevant part of the output will have scrolled off your screen or
-gotten swapped out of your buffer. Therefore, it makes sense to capture the
+been swapped out of your buffer. Therefore, it makes sense to capture the
 output in a file for later analysis.
+
+It's customary to present the results of your testing in comments on the PR.
+Presenting testing results can never hurt, as they tend to build reviewers'
+confidence that the changes do not break the existing code.
 
 
 Document your changes
@@ -291,8 +299,8 @@ commands or their output, then the pull request must include appropriate updates
 to documentation.
 
 It is the submitter's responsibility to make the changes, and the reviewer's
-responsibility to make sure they are not merging changes that do not 
-have the needed updates to documentation.
+responsibility to make sure they are not merging changes that are missing the
+needed updates to documentation.
 
 Where there are areas that have absent documentation, or there is no clear place
 to note the change that is being made, the reviewer should contact the component
