@@ -841,8 +841,8 @@ while true ; do
         --milestones) CHECK_MILESTONES="$1" ; shift ;;
         --setup|-s) SETUP_ONLY="$1" ; shift ;;
         --setup-advice) ADVICE="1" ; SETUP_ADVICE="$1" ; shift ;;
-        --troubleshooting-advice) ADVICE="$1" ; TROUBLESHOOTING_ADVICE="$1" ; shift ;;
-        --update-version) update_version_number_and_exit ;;
+        --trouble*) ADVICE="$1" ; TROUBLESHOOTING_ADVICE="$1" ; shift ;;
+        --update*) update_version_number_and_exit ;;
         --usage-advice) ADVICE="$1" ; USAGE_ADVICE="$1" ; shift ;;
         --verbose|-v) VERBOSE="$1" ; shift ;;
         --version) display_version_message_and_exit ;;
