@@ -280,16 +280,17 @@ Then, copy the script to somewhere in your PATH and try to run it::
 
 This should produce a usage message.
 
-Finally, run the script to actually create the Backport issues::
+Finally, run the script to actually create the Backport issues.
+For example, if the tracker issue number is 55555::
 
-    backport-create-issue --user <tracker_username> --password <tracker_password> 99999
+    backport-create-issue --user <tracker_username> --password <tracker_password> 55555
 
 The script needs to know your https://tracker.ceph.com credentials in order to
 authenticate to Redmine. In lieu of providing your literal username and password
 on the command line, you could also obtain a REST API key ("My account" -> "API
 access key") and run the script like so::
 
-    backport-create-issue --key <tracker_api_key> 99999
+    backport-create-issue --key <tracker_api_key> 55555
 
 
 .. _`stage backports`:
