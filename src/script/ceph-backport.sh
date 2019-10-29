@@ -132,10 +132,8 @@ function check_tracker_status {
     else
         if [ "$tslc" = "in progress" ] ; then
             error "Backport $redmine_url is already in progress"
-            false
         else
             error "Backport $redmine_url is closed (status: ${ts})"
-            false
         fi
     fi
     echo "$tslc_is_ok"
@@ -1000,7 +998,7 @@ fi
 # process command-line arguments
 #
 
-munged_options=$(getopt -o c:dhsv --long "cherry-pick-only,component:,debug,existing-pr:,help,milestones,setup,setup-report,troubleshooting,update-version,usage,verbose,version" -n "$this_script" -- "$@")
+munged_options=$(getopt -o c:dhsv --long "cherry-pick-only,component:,debug,existing-pr:,force,help,milestones,setup,setup-report,troubleshooting,update-version,usage,verbose,version" -n "$this_script" -- "$@")
 eval set -- "$munged_options"
 
 ADVICE=""
@@ -1009,6 +1007,7 @@ CHERRY_PICK_ONLY=""
 DEBUG=""
 EXISTING_PR=""
 EXPLICIT_COMPONENT=""
+FORCE=""
 HELP=""
 INTERACTIVE_SETUP_ROUTINE=""
 ISSUE=""
@@ -1022,6 +1021,7 @@ while true ; do
         --component|-c) shift ; EXPLICIT_COMPONENT="$1" ; shift ;;
         --debug|-d) DEBUG="$1" ; shift ;;
         --existing-pr) shift ; EXISTING_PR="$1" ; shift ;;
+        --force) FORCE="$1" ; shift ;;
         --help|-h) ADVICE="1" ; HELP="$1" ; shift ;;
         --milestones) CHECK_MILESTONES="$1" ; shift ;;
         --setup|-s) INTERACTIVE_SETUP_ROUTINE="$1" ; shift ;;
@@ -1145,7 +1145,11 @@ debug "Looking up status of $redmine_url"
 tracker_status="$(echo "$remote_api_output" | jq -r '.issue.status.name')"
 if [ "$tracker_status" ] ; then
     debug "Tracker status: $tracker_status"
-    test "$(check_tracker_status "$tracker_status")"
+    if [ "$FORCE" ] ; then
+        check_tracker_status "$tracker_status"
+    else
+        test "$(check_tracker_status "$tracker_status")"
+    fi
 else
     error "could not obtain status from ${redmine_url}"
     false
@@ -1156,14 +1160,21 @@ debug "Title of $redmine_url is ->$tracker_title<-"
 
 tracker_assignee_id="$(echo "$remote_api_output" | jq -r '.issue.assigned_to.id')"
 tracker_assignee_name="$(echo "$remote_api_output" | jq -r '.issue.assigned_to.name')"
-debug "$redmine_url is assigned to $tracker_assignee_name (ID $tracker_assignee_id)"
-
 if [ "$tracker_assignee_id" = "null" ] || [ "$tracker_assignee_id" = "$redmine_user_id" ] ; then
     true
 else
-    error "$redmine_url is assigned to $tracker_assignee_name (ID $tracker_assignee_id)"
-    info "Cowardly refusing to work on an issue that is assigned to someone else"
-    false
+    error_msg_1="$redmine_url is assigned to someone else: $tracker_assignee_name (ID $tracker_assignee_id)"
+    error_msg_2="(my ID is $redmine_user_id)"
+    if [ "$FORCE" ] ; then
+        warning "$error_msg_1"
+        info "$error_msg_2"
+        info "--force was given: continuing execution"
+    else
+        error "$error_msg_1"
+        info "$error_msg_2"
+        info "Cowardly refusing to continue"
+        false
+    fi
 fi
 
 if [ -z "$(is_active_milestone "$milestone")" ] ; then
