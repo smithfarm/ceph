@@ -118,6 +118,7 @@ function check_milestones {
 function check_tracker_status {
     local -a ok_statuses=("new" "need more info")
     local ts="$1"
+    local error_msg
     local tslc="${ts,,}"
     local tslc_is_ok=
     for oks in "${ok_statuses[@]}"; do
@@ -131,9 +132,14 @@ function check_tracker_status {
         true
     else
         if [ "$tslc" = "in progress" ] ; then
-            error "Backport $redmine_url is already in progress"
+            error_msg="backport $redmine_url is already in progress"
         else
-            error "Backport $redmine_url is closed (status: ${ts})"
+            error_msg="backport $redmine_url is closed (status: ${ts})"
+        fi
+        if [ "$FORCE" ] ; then
+            warning "$error_msg"
+        else
+            error "$error_msg"
         fi
     fi
     echo "$tslc_is_ok"
@@ -564,24 +570,32 @@ function populate_original_pr {
     fi
 }
 
-function tracker_was_updated {
-    local status_should_be="$1"
-    local desc_should_be="$2"
-    local stamp_should_be="$3"
-    local status_is
-    local desc_is
-    local stamp_is
-    local was_updated="yes"
-    remote_api_output="$(curl --silent "${redmine_url}.json?include=journals")"
-    status_is="$(echo "$remote_api_output" | jq -r '.issue.status.id')"
-    [ "$status_is" = "$status_should_be" ] || was_updated=""
-    desc_is="$(echo "$remote_api_output" | jq -r '.issue.description')"
-    [ "$desc_is" = "$desc_should_be" ] || was_updated=""
-    stamp_is="$(echo "$remote_api_output" | jq -r '.issue.journals[] | .notes | test("'${stamp_should_be}'")' | grep -v false | head -n1)"
-    [ "$stamp_is" = "true" ] || was_updated=""
+function tracker_component_is_in_desired_state {
+    local comp="$1"
+    local val_is="$2"
+    local val_should_be="$3"
+    local in_desired_state
+    if [ "$val_is" = "$val_should_be" ] ; then
+        debug "Tracker $comp is in the desired state"
+        in_desired_state="yes"
+    fi
+    echo "$in_desired_state"
+}
+
+function tracker_component_was_updated {
+    local comp="$1"
+    local val_old="$2"
+    local val_new="$3"
+    local was_updated
+    if [ "$val_old" = "$val_new" ] ; then
+        true
+    else
+        debug "Tracker $comp was updated!"
+        was_updated="yes"
+    fi
     echo "$was_updated"
 }
-        
+
 function troubleshooting_advice {
     cat <<EOM
 Troubleshooting notes
@@ -1142,13 +1156,14 @@ else
 fi
 
 debug "Looking up status of $redmine_url"
-tracker_status="$(echo "$remote_api_output" | jq -r '.issue.status.name')"
-if [ "$tracker_status" ] ; then
-    debug "Tracker status: $tracker_status"
+tracker_status_id="$(echo "$remote_api_output" | jq -r '.issue.status.id')"
+tracker_status_name="$(echo "$remote_api_output" | jq -r '.issue.status.name')"
+if [ "$tracker_status_name" ] ; then
+    debug "Tracker status: $tracker_status_name"
     if [ "$FORCE" ] ; then
-        check_tracker_status "$tracker_status"
+        test "$(check_tracker_status "$tracker_status_name")" || true
     else
-        test "$(check_tracker_status "$tracker_status")"
+        test "$(check_tracker_status "$tracker_status_name")"
     fi
 else
     error "could not obtain status from ${redmine_url}"
@@ -1157,6 +1172,9 @@ fi
 
 tracker_title="$(echo "$remote_api_output" | jq -r '.issue.subject')"
 debug "Title of $redmine_url is ->$tracker_title<-"
+
+tracker_description="$(echo "$remote_api_output" | jq -r '.issue.description')"
+debug "Description of $redmine_url is ->$tracker_description<-"
 
 tracker_assignee_id="$(echo "$remote_api_output" | jq -r '.issue.assigned_to.id')"
 tracker_assignee_name="$(echo "$remote_api_output" | jq -r '.issue.assigned_to.name')"
@@ -1189,12 +1207,12 @@ if [ "$milestone_number" -gt "0" ] >/dev/null 2>&1 ; then
 else
     milestone_number=$(milestone_number_from_remote_api "$milestone")
 fi
-info "Milestone/release is $milestone"
-debug "Milestone number is $milestone_number"
+info "milestone/release is $milestone"
+debug "milestone number is $milestone_number"
 
 
 if [ "$EXISTING_PR" ] ; then
-    info "Backport PR#${EXISTING_PR} already exists; updating tracker only"
+    info "backport PR#${EXISTING_PR} already exists; updating tracker only"
     backport_pr_number="$EXISTING_PR"
 else
     #
@@ -1283,11 +1301,11 @@ else
     pgrep firefox >/dev/null && firefox "${backport_pr_url}"
 fi
 
-debug "Updating backport tracker issue ${redmine_url}"
-unique_stamp="$(date +%s)"
-new_description="https://github.com/ceph/ceph/pull/${backport_pr_number}"
-redmine_status=2 # In Progress
-remote_api_status_code="$(curl --write-out '%{http_code}' --output /dev/null --silent -X PUT --header "Content-type: application/json" --data-binary "{\"issue\":{\"description\":\"${new_description}\",\"status_id\":${redmine_status},\"assigned_to_id\":${redmine_user_id},\"notes\":\"Updated automatically by ceph-backport.sh version ${SCRIPT_VERSION} in second ${unique_stamp} of the Unix Era\"}}" "${redmine_url}.json?key=$redmine_key")"
+debug "Considering Backport tracker issue ${redmine_url}"
+status_should_be=2 # In Progress
+desc_should_be="https://github.com/ceph/ceph/pull/${backport_pr_number}"
+assignee_should_be="${redmine_user_id}"
+remote_api_status_code="$(curl --write-out '%{http_code}' --output /dev/null --silent -X PUT --header "Content-type: application/json" --data-binary "{\"issue\":{\"description\":\"${desc_should_be}\",\"status_id\":${status_should_be},\"assigned_to_id\":${assignee_should_be},\"notes\":\"ceph-backport.sh version ${SCRIPT_VERSION}: attempting to link this Backport tracker issue with GitHub PR ${desc_should_be}\"}}" "${redmine_url}.json?key=$redmine_key")"
 if [ "${remote_api_status_code:0:1}" = "2" ] ; then
     true
 elif [ "${remote_api_status_code:0:1}" = "4" ] ; then
@@ -1298,13 +1316,23 @@ else
 fi
 # check if anything actually changed on the Redmine issue
 remote_api_output=$(curl --silent "${redmine_url}.json?include=journals")
-tracker_was_updated="$(echo "$remote_api_output" | jq -r ".issue.journals[] | .notes | test(\""${unique_stamp}"\")" | grep -v false)"
-if [ "$(tracker_was_updated "$redmine_status" "$new_description" "$unique_stamp")" ] ; then
-    info "${redmine_url} updated"
+status_is="$(echo "$remote_api_output" | jq -r '.issue.status.id')"
+desc_is="$(echo "$remote_api_output" | jq -r '.issue.description')"
+assignee_is="$(echo "$remote_api_output" | jq -r '.issue.assigned_to.id')"
+tracker_was_updated=""
+tracker_is_in_desired_state="yes"
+[ "$(tracker_component_was_updated "status" "$tracker_status_id" "$status_is")" ] && tracker_was_updated="yes"
+[ "$(tracker_component_was_updated "desc" "$tracker_description" "$desc_is")" ] && tracker_was_updated="yes"
+[ "$(tracker_component_was_updated "assignee" "$tracker_assignee_id" "$assignee_is")" ] && tracker_was_updated="yes"
+[ "$(tracker_component_is_in_desired_state "status" "$status_is" "$status_should_be")" ] || tracker_is_in_desired_state=""
+[ "$(tracker_component_is_in_desired_state "desc" "$desc_is" "$desc_should_be")" ] || tracker_is_in_desired_state=""
+[ "$(tracker_component_is_in_desired_state "assignee" "$assignee_is" "$assignee_should_be")" ] || tracker_is_in_desired_state=""
+[ "$tracker_was_updated" ] && info "Tracker ${redmine_url} was updated"
+if [ "$tracker_is_in_desired_state" ] ; then
+    info "Backport tracker issue ${redmine_url} is in the desired state"
+    pgrep firefox >/dev/null && firefox "${redmine_url}"
 else
-    info "Failed to automatically update ${redmine_url}"
-    info "Please add a comment to ${redmine_url} to let others know that you"
-    info "are working on the backport. In your comment, consider mentioning the"
-    info "${backport_pr_url} (the URL of the backport PR that was just opened)."
+    # user probably lacks sufficient Redmine privileges, but this is not
+    # a problem
+    info "Comment added to ${redmine_url}"
 fi
-pgrep firefox >/dev/null && firefox "${redmine_url}"
