@@ -1247,7 +1247,6 @@ else
     fi
     [ "$skip_cherry_pick_phase" ] || cherry_pick_phase
     [ "$CHERRY_PICK_ONLY" ] && exit 0
-    exit 0
     
     
     #
