@@ -183,7 +183,8 @@ function cherry_pick_phase {
     if [ "$merged" = "true" ] ; then
         true
     else
-        error "${original_pr_url} is not merged yet: cowardly refusing to perform automated cherry-pick"
+        error "${original_pr_url} is not merged yet"
+        info "Cowardly refusing to perform automated cherry-pick"
         false
     fi
     number_of_commits=$(echo "${remote_api_output}" | jq '.commits')
@@ -205,10 +206,17 @@ function cherry_pick_phase {
 
     debug "Initializing local branch $local_branch to $milestone"
     if git show-ref --verify --quiet "refs/heads/$local_branch" ; then
-        error "Cannot initialize $local_branch - local branch already exists"
-        false
+        if [ "$FORCE" ] ; then
+            warning "refs/heads/$local_branch already exists"
+            info "--force was given, so clobbering it"
+            git checkout "$local_branch"
+            git reset --hard "${upstream_remote}/${milestone}"
+        else
+            error "Cannot initialize $local_branch - local branch already exists"
+            false
+        fi
     else
-        git checkout "$upstream_remote/$milestone" -b "$local_branch"
+        git checkout "${upstream_remote}/${milestone}" -b "$local_branch"
     fi
 
     debug "Fetching latest commits from ${original_pr_url}"
@@ -1239,12 +1247,8 @@ else
     else
         info "$local_branch does not exist: will create it and attempt automated cherry-pick"
     fi
-    if [ "$skip_cherry_pick_phase" ] ; then
-        true
-    else
-        cherry_pick_phase
-        [ "$CHERRY_PICK_ONLY" ] && exit 0
-    fi
+    [ "$skip_cherry_pick_phase" ] || cherry_pick_phase
+    [ "$CHERRY_PICK_ONLY" ] && exit 0
     
     
     #
