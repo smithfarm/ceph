@@ -1220,14 +1220,27 @@ else
     #
     
     local_branch=wip-${issue}-${target_branch}
+    skip_cherry_pick_phase="$CHERRY_PICK_ONLY"
     if git show-ref --verify --quiet "refs/heads/$local_branch" ; then
         if [ "$CHERRY_PICK_ONLY" ] ; then
-            error "local branch $local_branch already exists -- cannot -prepare"
-            false
+            if [ "$FORCE" ] ; then
+                warning "local branch $local_branch already exists"
+                info "--force was given: will clobber $local_branch and attempt automated cherry-pick"
+            else
+                error "local branch $local_branch already exists"
+                info "Cowardly refusing to clobber $local_branch as it might contain valuable data"
+                info "(hint) run with --force to clobber it and attempt the cherry-pick"
+                false
+        else
+            info "local branch $local_branch already exists: skipping cherry-pick phase"
+            skip_cherry_pick_phase="yes"
         fi
-        info "local branch $local_branch already exists: skipping cherry-pick phase"
     else
         info "$local_branch does not exist: will create it and attempt automated cherry-pick"
+    fi
+    if [ "$skip_cherry_pick_phase" ] ; then
+        true
+    else
         cherry_pick_phase
         [ "$CHERRY_PICK_ONLY" ] && exit 0
     fi
