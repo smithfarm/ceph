@@ -1231,6 +1231,7 @@ else
                 info "Cowardly refusing to clobber $local_branch as it might contain valuable data"
                 info "(hint) run with --force to clobber it and attempt the cherry-pick"
                 false
+            fi
         else
             info "local branch $local_branch already exists: skipping cherry-pick phase"
             skip_cherry_pick_phase="yes"
