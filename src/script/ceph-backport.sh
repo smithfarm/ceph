@@ -1228,7 +1228,7 @@ else
     #
     
     local_branch=wip-${issue}-${target_branch}
-    skip_cherry_pick_phase="$CHERRY_PICK_ONLY"
+    skip_cherry_pick_phase=""
     if git show-ref --verify --quiet "refs/heads/$local_branch" ; then
         if [ "$CHERRY_PICK_ONLY" ] ; then
             if [ "$FORCE" ] ; then
@@ -1249,6 +1249,7 @@ else
     fi
     [ "$skip_cherry_pick_phase" ] || cherry_pick_phase
     [ "$CHERRY_PICK_ONLY" ] && exit 0
+    exit 0
     
     
     #
