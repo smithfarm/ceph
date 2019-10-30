@@ -67,7 +67,7 @@ then you just add a line saying ::
         Signed-off-by: Random J Developer <random@developer.example.org>
 
 
-using your real name (sorry, no pseudonyms or anonymous contributions.)
+using your real name (sorry, no pseudonyms or anonymous contributions).
 
 Some people also put extra tags at the end. They'll just be ignored for
 now, but you can do this to mark internal company procedures or just
@@ -205,7 +205,7 @@ increase the likelihood of your patch getting into the kernel.
 Preparing and sending patches
 -----------------------------
 
-For the kernel client, patches are expected to be  emailed directly to the
+For the kernel client, patches are expected to be emailed directly to the
 email list ``ceph-devel@vger.kernel.org`` (note: *not* ``dev@ceph.io``) and reviewed
 in the email list.
 
@@ -218,7 +218,7 @@ with the 'git format-patch' command. For example,
 
    $ git format-patch HEAD^^ -o mything
 
-will take the last two commits and generate patches in the mything/
+will take the last two commits and generate patches in the ``mything/``
 directory. The commit you specify on the command line is the
 'upstream' commit that you are diffing against. Note that it does
 not necessarily have to be an ancestor of your current commit. You
@@ -232,7 +232,7 @@ can do something like
    # ...find out that origin/unstable has also moved forward...
    $ git format-patch origin/unstable -o mything
 
-and the patches will be against origin/unstable.
+and the patches will be against ``origin/unstable``.
 
 The ``-o`` dir is optional; if left off, the patch(es) will appear in
 the current directory. This can quickly get messy.
@@ -243,7 +243,7 @@ stuff for a multipart patch series. If it's a single patch, don't
 bother.
 
 Make sure your patch does not include any extra files which do not
-belong in a patch submission. Make sure to review your patch -after-
+belong in a patch submission. Make sure to review your patch *after*
 generated it with ``diff(1)``, to ensure accuracy.
 
 If your changes produce a lot of deltas, you may want to look into
