@@ -201,17 +201,15 @@ function cherry_pick_phase {
     fi
     info "Found $number_of_commits $singular_or_plural_commit in $original_pr_url"
 
-    debug "Fetching latest commits from $upstream_remote"
+    set -x
     git fetch "$upstream_remote"
 
-    debug "Initializing local branch $local_branch to $milestone"
     if git show-ref --verify --quiet "refs/heads/$local_branch" ; then
         if [ "$FORCE" ] ; then
-            warning "refs/heads/$local_branch already exists"
-            info "--force was given, so clobbering it"
             git checkout "$local_branch"
             git reset --hard "${upstream_remote}/${milestone}"
         else
+            set +x
             error "Cannot initialize $local_branch - local branch already exists"
             false
         fi
@@ -219,9 +217,9 @@ function cherry_pick_phase {
         git checkout "${upstream_remote}/${milestone}" -b "$local_branch"
     fi
 
-    debug "Fetching latest commits from ${original_pr_url}"
     git fetch "$upstream_remote" "pull/$original_pr/head:pr-$original_pr"
 
+    set +x
     info "Attempting to cherry pick $number_of_commits commits from ${original_pr_url} into local branch $local_branch"
     offset="$((number_of_commits - 1))" || true
     for ((i=offset; i>=0; i--)) ; do
