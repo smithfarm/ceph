@@ -10,9 +10,9 @@ curl_cmd (){
 
 	if [ ! -z "$4" ]
 	then
-	       	sudo su -c "curl -X $1 -s -H \"accept: */*\" -H \"Authorization: Bearer $2\" \"${dashboard_addr}$3\" -H \"Content-Type: application/json\" -d \"$(cat $4)\""
+	       	curl -X $1 -s -H "accept: */*" -H "Authorization: Bearer $2" "${dashboard_addr}$3" -H "Content-Type: application/json" -d "$(cat $4)"
 	else
-	       	sudo su -c "curl -X $1 -s -H \"accept: */*\" -H \"Authorization: Bearer $2\" \"${dashboard_addr}$3\""
+	       	curl -X $1 -s -H "accept: */*" -H "Authorization: Bearer $2" "${dashboard_addr}$3"
 	fi
 }
 
