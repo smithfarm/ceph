@@ -348,13 +348,13 @@ class Validation(SESQA):
             self.scripts.run(
                     self.master_remote,
                     'ses_nfs_dashboard_rest_api_part1.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_storage,
                     )
         if kwargs['part'] == 2:
             self.scripts.run(
                     self.master_remote,
                     'ses_nfs_dashboard_rest_api_part2.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_storage,
                     )
 
     def ses_stop_osd_daemon(self, **kwargs):
