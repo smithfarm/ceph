@@ -1,0 +1,14 @@
+tasks:
+    - ses_qa:
+    - ses_qa.validation:
+        nfs_dashboard_rest_api:
+          part: 1
+    - deepsea.orch:
+        stage: 2
+    - deepsea.orch:
+        stage: 3
+    - deepsea.orch:
+        stage: 4
+    - ses_qa.validation:
+        nfs_dashboard_rest_api:
+          part: 2

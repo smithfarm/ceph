@@ -72,45 +72,23 @@ EOF
 }
 
 # deploy services if they aren't already
-storage_minions=`sudo su -c "salt-run select.minions roles=storage --output=json | jq -r .[]"`
-storage_minions_num=`echo "$storage_minions" | wc -l`
-if [ -z "`sudo su -c "salt-run select.minions roles=ganesha"`" ]
-then
-	sudo su -c "echo \"role-ganesha/cluster/$(echo \"$storage_minions\" \
-		| sed \"`shuf -i 1-$storage_minions_num -n1`q;d\")\" >> /srv/pillar/ceph/proposals/policy.cfg"
-fi
+declare -a storage_minions=("$@")
 
-if [ -z "`sudo su -c "salt-run select.minions roles=mds"`" ]
-then
-	sudo su -c "echo \"role-mds/cluster/$(echo \"$storage_minions\" \
-		| sed \"`shuf -i 1-$storage_minions_num -n1`q;d\")\" >> /srv/pillar/ceph/proposals/policy.cfg"
-fi
-
-if [ -z "`sudo su -c "salt-run select.minions roles=rgw"`" ]
-then
-	sudo su -c "echo \"role-rgw/cluster/$(echo \"$storage_minions\" \
-		| sed \"`shuf -i 1-$storage_minions_num -n1`q;d\")\" >> /srv/pillar/ceph/proposals/policy.cfg"
-fi
-
-sudo su -c "salt-run state.orch ceph.stage.2"
-sudo su -c "salt-run state.orch ceph.stage.3"
-sudo su -c "salt-run state.orch ceph.stage.4"
-
-dashboard_addr="`sudo su -c "ceph mgr services --format=json | jq -r .dashboard"`"
+dashboard_addr="`ceph mgr services --format=json | jq -r .dashboard`"
 
 # test if user admin with password admin is working 
 # update credentials if not
 if ! curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' \
 	${dashboard_addr}api/auth -s | jq -r .token >/dev/null 2>&1
 then
-        sudo su -c "ceph dashboard set-login-credentials admin admin >/dev/null"
+        ceph dashboard set-login-credentials admin admin >/dev/null
 fi
 
 login_token="`curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' \
 	${dashboard_addr}api/auth -s | jq -r .token`"
-rgw_user_id="`sudo su -c "radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].user"`"
-rgw_access_key="`sudo su -c "radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].access_key"`"
-rgw_secret_key="`sudo su -c "radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].secret_key"`"
+rgw_user_id="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].user`"
+rgw_access_key="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].access_key`"
+rgw_secret_key="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].secret_key`"
 cluster_id="`curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" \
 	| jq -r .[0].cluster_id`"
 daemons=[\ `curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" \
@@ -129,7 +107,7 @@ rgw_export_id=`curl_cmd "POST" "$login_token" "api/nfs-ganesha/export" "/tmp/rgw
 
 
 # shares testing
-sudo su -c "mkdir -p /mnt/{rgw,cephfs}"
+mkdir -p /mnt/{rgw,cephfs}
 
 if [ ! -z "$cephfs_export_id" ]
 then
@@ -137,15 +115,14 @@ then
 	do
 		echo
 	       	echo "testing $nfs_daemon"
-		if sudo su -c "showmount -e $nfs_daemon"
+		if showmount -e $nfs_daemon
 		then
-		       	sudo su -c "mount $nfs_daemon:/cephfs1_pseudo /mnt/cephfs"
-			sudo su -c "dd if=/dev/zero of=/mnt/cephfs/cephfs_testfile.bin oflag=direct bs=1M count=100"
+		       	mount $nfs_daemon:/cephfs1_pseudo /mnt/cephfs
+			dd if=/dev/zero of=/mnt/cephfs/cephfs_testfile.bin oflag=direct bs=1M count=100
 			sleep 5
-			echo
-			sudo su -c "df -h /mnt/cephfs/cephfs_testfile.bin"
-			sudo su -c "rm -f /mnt/cephfs/cephfs_testfile.bin"
-			sudo su -c "umount /mnt/cephfs"
+			df -h /mnt/cephfs/cephfs_testfile.bin
+			rm -f /mnt/cephfs/cephfs_testfile.bin
+			umount /mnt/cephfs
 			echo "passed"
 		fi
 	done
@@ -158,22 +135,22 @@ then
 	do
 		echo
 	       	echo "testing $nfs_daemon"
-		if sudo su -c "showmount -e $nfs_daemon"
+		if showmount -e $nfs_daemon
 		then
-		       	sudo su -c "mount $nfs_daemon:/rgw_bucket_ps /mnt/rgw"
-			sudo su -c "dd if=/dev/zero of=/mnt/rgw/rgw_testfile.bin oflag=direct bs=1M count=100"
+		       	mount $nfs_daemon:/rgw_bucket_ps /mnt/rgw
+			dd if=/dev/zero of=/mnt/rgw/rgw_testfile.bin oflag=direct bs=1M count=100
 			sleep 5
 			echo
-			sudo su -c "df -h /mnt/rgw/rgw_testfile.bin"
-			sudo su -c "rm -f /mnt/rgw/rgw_testfile.bin"
-			sudo su -c "umount /mnt/rgw"
+			df -h /mnt/rgw/rgw_testfile.bin
+			rm -f /mnt/rgw/rgw_testfile.bin
+			umount /mnt/rgw
 			echo "passed"
 		fi
 	done
 
 fi
 
-sudo su -c "rm -rf /mnt/{rgw,cephfs}"
+rm -rf /mnt/{rgw,cephfs}
 
 # delete nfs exports
 curl_cmd "DELETE" "$login_token" "api/nfs-ganesha/export/$cluster_id/$cephfs_export_id"
