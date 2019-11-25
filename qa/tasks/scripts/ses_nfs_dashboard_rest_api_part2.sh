@@ -71,9 +71,6 @@ EOF
 
 }
 
-# deploy services if they aren't already
-declare -a storage_minions=("$@")
-
 dashboard_addr="`ceph mgr services --format=json | jq -r .dashboard`"
 
 # test if user admin with password admin is working 
