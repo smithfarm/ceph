@@ -90,9 +90,9 @@ rgw_user_id="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0]
 rgw_access_key="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].access_key`"
 rgw_secret_key="`radosgw-admin user info --uid=admin --format=json | jq -r .keys[0].secret_key`"
 cluster_id="`curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" \
-	| jq -r .[0].cluster_id`"
+		| jq -r .[0].cluster_id`"
 daemons=[\ `curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" \
-	| jq -r .[].daemon_id | xargs -I {} echo \"{}\" | tr '\n' ',' | sed 's/.$//'`\ ]
+		| jq -r .[].daemon_id | xargs -I {} echo \"{}\" | tr '\n' ',' | sed 's/.$//'`\ ]
 
 
 # create cephfs nfs share
@@ -114,10 +114,10 @@ then
 	for nfs_daemon in `curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" | jq -r .[].daemon_id`
 	do
 		echo
-	       	echo "testing $nfs_daemon"
+		echo "testing $nfs_daemon"
 		if showmount -e $nfs_daemon
 		then
-		       	mount $nfs_daemon:/cephfs1_pseudo /mnt/cephfs
+			mount $nfs_daemon:/cephfs1_pseudo /mnt/cephfs
 			dd if=/dev/zero of=/mnt/cephfs/cephfs_testfile.bin oflag=direct bs=1M count=100
 			sleep 5
 			df -h /mnt/cephfs/cephfs_testfile.bin
@@ -134,10 +134,10 @@ then
 	for nfs_daemon in `curl_cmd "GET" "$login_token" "api/nfs-ganesha/daemon" | jq -r .[].daemon_id`
 	do
 		echo
-	       	echo "testing $nfs_daemon"
+		echo "testing $nfs_daemon"
 		if showmount -e $nfs_daemon
 		then
-		       	mount $nfs_daemon:/rgw_bucket_ps /mnt/rgw
+			mount $nfs_daemon:/rgw_bucket_ps /mnt/rgw
 			dd if=/dev/zero of=/mnt/rgw/rgw_testfile.bin oflag=direct bs=1M count=100
 			sleep 5
 			echo
