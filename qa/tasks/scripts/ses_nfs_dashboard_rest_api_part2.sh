@@ -70,16 +70,20 @@ cat << EOF > /tmp/cephfs_export.json
 EOF
 
 }
-
+ceph config set mgr mgr/dashboard/ssl false
+ceph mgr module disable dashboard
+ceph mgr module enable dashboard
+sleep 10
+radosgw-admin create user --uid=admin --display-name=admin
 dashboard_addr="`ceph mgr services --format=json | jq -r .dashboard`"
 
 # test if user admin with password admin is working 
 # update credentials if not
-#if ! curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' \
-#	${dashboard_addr}api/auth -s | jq -r .token >/dev/null 2>&1
-#then
+if ! curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' \
+	${dashboard_addr}api/auth -s | jq -r .token >/dev/null 2>&1
+then
         ceph dashboard set-login-credentials admin admin >/dev/null
-#fi
+fi
 
 login_token="`curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' \
 	${dashboard_addr}api/auth -s | jq -r .token`"
