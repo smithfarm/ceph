@@ -74,7 +74,7 @@ ceph config set mgr mgr/dashboard/ssl false
 ceph mgr module disable dashboard
 ceph mgr module enable dashboard
 sleep 10
-radosgw-admin create user --uid=admin --display-name=admin
+radosgw-admin user create --uid=admin --display-name=admin
 dashboard_addr="`ceph mgr services --format=json | jq -r .dashboard`"
 
 # test if user admin with password admin is working 
