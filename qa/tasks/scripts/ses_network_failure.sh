@@ -19,7 +19,7 @@ create_netem_rules () {
 
 case $3 in 
     '') ooo="$(echo -e $2)" ;;
-    *) ooo="$(echo -e \"$2\" | tail -$3)" ;;
+    *) ooo="$(echo -e "$2" | tail -$3)" ;;
 esac
 
 for minion in $ooo
