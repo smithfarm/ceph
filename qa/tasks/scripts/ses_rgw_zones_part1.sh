@@ -4,12 +4,12 @@ declare -a storage_minions=("$@")
 
 echo "### Getting random minion to install RGW on ###"
 minion_fqdn=${storage_minions[0]}
-minion=${minion_fqdn%.*}
+minion=${minion_fqdn%%.*}
 
 echo "### Getting second random minion to install RGW on ###"
 minion2_fqdn=${storage_minions[1]}
 
-minion2=${minion2_fqdn%.*}
+minion2=${minion2_fqdn%%.*}
 
 cat << EOF >> /srv/pillar/ceph/stack/global.yml
 

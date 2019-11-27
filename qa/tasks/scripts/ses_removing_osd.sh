@@ -10,7 +10,7 @@ wait_for_server () {
  done
 }
 
-minion=${minion_fqdn%.*}
+minion=${minion_fqdn%%.*}
 random_osd=$(ceph osd tree | grep -A 1 $minion | grep -o "osd\.".* | awk '{print$1}')
 
 ceph osd out $random_osd

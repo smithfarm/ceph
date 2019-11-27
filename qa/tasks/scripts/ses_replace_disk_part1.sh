@@ -3,7 +3,7 @@ set -ex
 declare -a minion_fqdn="$1"
 
 echo "### Getting random minion and its random OSD ###"
-minion=${minion_fqdn%.*}
+minion=${minion_fqdn%%.*}
 random_osd=$(ceph osd tree | grep -A 1 $minion | grep -o "osd\.".* | awk '{print$1}')
 osd_id=${random_osd#*.}
 

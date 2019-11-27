@@ -104,8 +104,8 @@ public_network=$(ceph-conf -D --format=json | jq -r .public_network)
 cluster_network=$(ceph-conf -D --format=json | jq -r .cluster_network)
 
 # get first three octets of public and cluster IP
-public_octet_ip=${public_network%.*}
-cluster_octet_ip=${cluster_network%.*}
+public_octet_ip=${public_network%%.*}
+cluster_octet_ip=${cluster_network%%.*}
 
 # healthy network test
 nettest "network_healthy"

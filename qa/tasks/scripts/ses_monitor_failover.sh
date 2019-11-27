@@ -14,7 +14,7 @@ fi
 for mon2fail in $(seq 1 $monitors_max_down)
 do
     mon2fail_fqdn=${list_monitor_minions[$mon2fail]}
-    mon2fail=${mon2fail_fqdn%.*}
+    mon2fail=${mon2fail_fqdn%%.*}
     salt $mon2fail_fqdn service.stop ceph-mon@${mon2fail}.service
     salt $mon2fail_fqdn service.status ceph-mon@${mon2fail}.service
     sleep 120
@@ -24,7 +24,7 @@ done
  
 for mon2start_fqdn in $stopped_minions
 do
-    mon2start=${mon2start_fqdn%.*}
+    mon2start=${mon2start_fqdn%%.*}
     salt $mon2start_fqdn service.start ceph-mon@${mon2start}.service
     salt $mon2start_fqdn service.status ceph-mon@${mon2start}.service
     sleep 45
@@ -34,8 +34,8 @@ for node2down in $(seq 1 $monitors_max_down)
 do
     for node2block in $(echo ${list_monitor_minions[@]} | sed "s/${list_monitor_minions[$node2down]}//")
     do
-        salt ${list_monitor_minions[$node2down]} cmd.run "iptables -I INPUT -s ${node2block%.*} -j DROP" || true
-        salt ${list_monitor_minions[$node2down]} cmd.run "iptables -I OUTPUT -s ${node2block%.*} -j DROP" || true
+        salt ${list_monitor_minions[$node2down]} cmd.run "iptables -I INPUT -s ${node2block%%.*} -j DROP" || true
+        salt ${list_monitor_minions[$node2down]} cmd.run "iptables -I OUTPUT -s ${node2block%%.*} -j DROP" || true
     done
     salt ${list_monitor_minions[$node2down]} cmd.run "iptables -L INPUT" || true
     salt ${list_monitor_minions[$node2down]} cmd.run "iptables -L OUTPUT" || true
