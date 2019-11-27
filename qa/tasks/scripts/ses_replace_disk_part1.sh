@@ -1,6 +1,6 @@
 set -ex
 
-declare -a random_minion_fqdn="$@"
+declare -a random_minion_fqdn="$1"
 
 echo "### Getting random minion and its random OSD ###"
 random_minion=${random_minion_fqdn%.*}
