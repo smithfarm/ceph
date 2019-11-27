@@ -1,6 +1,6 @@
 set -ex
 
-declare -a random_minion_fqdn="$@"
+declare -a random_minion_fqdn="$1"
 
 wait_for_server () {
  sleep 20
