@@ -1,6 +1,6 @@
 set -ex
 
-declare -a disk_storage_minion=$@
+declare -a disk_storage_minion=$1
 
 storage_device_name=$(salt $disk_storage_minion cmd.run \
  "pvdisplay | grep -B 1 'VG Name .* ceph' | egrep -v 'ceph-block-dbs|nvme|--' | head -1 | cut -d / -f 3" --output=json | jq -r .[])
