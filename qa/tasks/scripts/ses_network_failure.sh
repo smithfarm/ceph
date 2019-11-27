@@ -1,15 +1,15 @@
 set -ex
 
-pool_name=`ceph osd pool ls`
+pool_name=$(ceph osd pool ls)
 rbd -p $pool_name create image1 --size 2G
-rbd_device=`rbd map $pool_name/image1`
+rbd_device=$(rbd map $pool_name/image1)
 parted -s $rbd_device mklabel gpt unit % mkpart 1 xfs 0 100
 mkfs.xfs ${rbd_device}p1
 mount ${rbd_device}p1 /mnt
 
 nettest () {
 set +x
-time_consumed+="$1 - `(time dd if=/dev/zero  of=/mnt/file1.bin count=100 bs=1M oflag=direct >/dev/null 2>&1) 2>&1 | sed '/^$/d' | head -1`; "
+time_consumed+="$1 - $( (time dd if=/dev/zero  of=/mnt/file1.bin count=100 bs=1M oflag=direct >/dev/null 2>&1) 2>&1 | sed '/^$/d' | head -1); "
 set -x
 ls -l /mnt/file1.bin
 rm -f /mnt/file1.bin
@@ -18,96 +18,94 @@ rm -f /mnt/file1.bin
 create_netem_rules () {
 
 case $3 in 
-'') ooo="`echo -e $2`" ;;
-*) ooo="`echo -e \"$2\" | tail -$3`" ;;
+    '') ooo="$(echo -e $2)" ;;
+    *) ooo="$(echo -e \"$2\" | tail -$3)" ;;
 esac
 
 for minion in $ooo
 do
-        public_interface=`salt $minion cmd.run "ip -o -4 address | grep $public_octet_ip" | awk '{print $2}' | sed '/^$/d'` 
-        cluster_interface=`salt $minion cmd.run "ip -o -4 address | grep $cluster_octet_ip" | awk '{print $2}' | sed '/^$/d'`
+    public_interface=$(salt $minion cmd.run "ip -o -4 address | grep $public_octet_ip" | awk '{print $2}' | sed '/^$/d') 
+    cluster_interface=$(salt $minion cmd.run "ip -o -4 address | grep $cluster_octet_ip" | awk '{print $2}' | sed '/^$/d')
+    
+    public_interface_list+=($public_interface)
+    cluster_interface_list+=($cluster_interface)
+    
+    minion_list+=($minion)
 
-        public_interface_list+=($public_interface)
-        cluster_interface_list+=($cluster_interface)
-
-        minion_list+=($minion)
-
-       	case $1 in 
-		delay|delay_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem delay 100ms 10ms distribution normal"
-		       	if [ "$public_interface" != "$cluster_interface" ]
-		       	then
-			       	salt $minion  cmd.run "tc qdisc add dev $public_interface root netem delay 100ms 10ms distribution normal"
-		       	fi
-		       	;;
-	       	packet_loss|packet_loss_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem loss 0.3% 25%"
-		       	if [ "$public_interface" != "$cluster_interface" ]
-		       	then
-			       	salt $minion cmd.run "tc qdisc add dev $public_interface root netem loss 0.3% 25%"
-		       	fi
-		       	;;
-	       	packet_dup|packet_dup_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem duplicate 1%"
-		       	if [ "$public_interface" != "$cluster_interface" ]
-		       	then
-			       	salt $minion cmd.run "tc qdisc add dev $public_interface root netem duplicate 1%"
-		       	fi
-		       	;;
-	       	packet_corruption|packet_corruption_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem corrupt 0.1%"
-		       	if [ "$public_interface" != "$cluster_interface" ]
-		       	then
-			       	salt $minion cmd.run "tc qdisc add dev $public_interface root netem corrupt 0.1%"
-		       	fi
-		       	;;
-	       	packet_reordering|packet_reordering_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem delay 10ms reorder 25% 50%"
-		       	if [ "$public_interface" != "$cluster_interface" ]
-			then
-			       	salt $minion cmd.run "tc qdisc add dev $public_interface root netem delay 10ms reorder 25% 50%"
-		       	fi
-		       	;;
-       	esac
+    case $1 in 
+        delay|delay_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem delay 100ms 10ms distribution normal"
+            if [ "$public_interface" != "$cluster_interface" ]
+            then
+                salt $minion  cmd.run "tc qdisc add dev $public_interface root netem delay 100ms 10ms distribution normal"
+            fi
+            ;;
+        packet_loss|packet_loss_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem loss 0.3% 25%"
+            if [ "$public_interface" != "$cluster_interface" ]
+            then
+                salt $minion cmd.run "tc qdisc add dev $public_interface root netem loss 0.3% 25%"
+            fi
+            ;;
+        packet_dup|packet_dup_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem duplicate 1%"
+            if [ "$public_interface" != "$cluster_interface" ]
+            then
+                salt $minion cmd.run "tc qdisc add dev $public_interface root netem duplicate 1%"
+            fi
+            ;;
+        packet_corruption|packet_corruption_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem corrupt 0.1%"
+            if [ "$public_interface" != "$cluster_interface" ]
+            then
+                salt $minion cmd.run "tc qdisc add dev $public_interface root netem corrupt 0.1%"
+            fi
+            ;;
+        packet_reordering|packet_reordering_all) salt $minion cmd.run "tc qdisc add dev $cluster_interface root netem delay 10ms reorder 25% 50%"
+            if [ "$public_interface" != "$cluster_interface" ]
+            then
+                salt $minion cmd.run "tc qdisc add dev $public_interface root netem delay 10ms reorder 25% 50%"
+            fi
+            ;;
+    esac
 
 done
 }
 
 remove_netem_rules () {
 case $1 in 
-	delay_all|packet_loss_all|packet_dup_all|packet_corruption_all|packet_reordering_all) simulated_minions=`echo -e "$2" | wc -l`
-		   ;;
-	*) simulated_minions=$2
-		   ;;
+    delay_all|packet_loss_all|packet_dup_all|packet_corruption_all|packet_reordering_all) simulated_minions=$(echo -e "$2" | wc -l)
+    ;;
+    *) simulated_minions=$2
+    ;;
 esac
 
-for rmqdisc in `seq 0 $(($simulated_minions-1))`
+for rmqdisc in $(seq 0 $(($simulated_minions-1)))
 do
-
-        if [ ! -z ${cluster_interface_list[$rmqdisc]} ] && [ "${cluster_interface_list[$rmqdisc]}" != "${public_interface_list[$rmqdisc]}" ]
-        then
-               salt ${minion_list[$rmqdisc]} cmd.run "tc qdisc del dev ${cluster_interface_list[$rmqdisc]} root netem || true"
-        fi
-
-        salt ${minion_list[$rmqdisc]} cmd.run "tc qdisc del dev ${public_interface_list[$rmqdisc]} root netem || true"
-
+    if [ ! -z ${cluster_interface_list[$rmqdisc]} ] && [ "${cluster_interface_list[$rmqdisc]}" != "${public_interface_list[$rmqdisc]}" ]
+    then
+           salt ${minion_list[$rmqdisc]} cmd.run "tc qdisc del dev ${cluster_interface_list[$rmqdisc]} root netem || true"
+    fi
+    
+    salt ${minion_list[$rmqdisc]} cmd.run "tc qdisc del dev ${public_interface_list[$rmqdisc]} root netem || true"
 done
 
 unset cluster_interface_list public_interface_list minion_list
 }
 
-net_storage_minions=`salt-run select.minions roles=storage | awk '{print $2}'`
-net_monitor_minions=`salt-run select.minions roles=mon | awk '{print $2}'`
+net_storage_minions=$(salt-run select.minions roles=storage | awk '{print $2}')
+net_monitor_minions=$(salt-run select.minions roles=mon | awk '{print $2}')
 
-net_storage_minions_count=`echo "$net_storage_minions" | wc -l`
-net_monitor_minions_count=`echo "$net_monitor_minions" | wc -l`
+net_storage_minions_count=$(echo "$net_storage_minions" | wc -l)
+net_monitor_minions_count=$(echo "$net_monitor_minions" | wc -l)
  
 # simulate network failure on half of storage / monitor minions
 net_storage_minions_simulate=$(($net_storage_minions_count / 2))
 net_monitor_minions_simulate=$(($net_monitor_minions_count / 2))
 
 # get public and cluster network
-public_network=`ceph-conf -D | grep -w public_network | cut -d = -f 2 | cut -d / -f 1`
-cluster_network=`ceph-conf -D | grep -w cluster_network | cut -d = -f 2 | cut -d / -f 1`
+public_network=$(ceph-conf -D --format=json | jq -r .public_network)
+cluster_network=$(ceph-conf -D --format=json | jq -r .cluster_network)
 
 # get first three octets of public and cluster IP
-public_octet_ip=`echo $public_network | cut -d . -f 1-3`
-cluster_octet_ip=`echo $cluster_network | cut -d . -f 1-3`
+public_octet_ip=${public_network%.*}
+cluster_octet_ip=${cluster_network%.*}
 
 # healthy network test
 nettest "network_healthy"

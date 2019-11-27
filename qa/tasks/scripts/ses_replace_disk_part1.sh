@@ -3,13 +3,15 @@ set -ex
 declare -a random_minion_fqdn="$@"
 
 echo "### Getting random minion and its random OSD ###"
-random_minion=`echo $random_minion_fqdn | cut -d . -f 1`
-random_osd=`ceph osd tree | grep -A 1 $random_minion | grep -o "osd\.".* | awk '{print$1}'`
-osd_id=`echo $random_osd | cut -d . -f 2`
+random_minion=${random_minion_fqdn%.*}
+random_osd=$(ceph osd tree | grep -A 1 $random_minion | grep -o "osd\.".* | awk '{print$1}')
+osd_id=${random_osd#*.}
 
-vg_name=`salt $random_minion_fqdn cmd.run "find /var/lib/ceph/osd/ceph-$osd_id -type l -name block -exec readlink {} \; | rev | cut -d / -f 2 | rev" | tail -1 | tr -d ' '`
+vg_name=$(salt $random_minion_fqdn cmd.run "find /var/lib/ceph/osd/ceph-$osd_id -type l -name block \
+    -exec readlink {} \; | rev | cut -d / -f 2 | rev" | tail -1 | tr -d ' ')
 
-minion_osd_disk_partition=`salt $random_minion_fqdn cmd.run "pvdisplay -m 2>/dev/null | grep -B 1 $vg_name | grep \"PV Name\" | awk '{print \$3}' | cut -d / -f 3" | tail -1 | tr -d ' '`
+minion_osd_disk_partition=$(salt $random_minion_fqdn cmd.run "pvdisplay -m 2>/dev/null | grep -B 1 $vg_name \
+    | grep \"PV Name\" | awk '{print \$3}' | cut -d / -f 3" | tail -1 | tr -d ' ')
 
 minion_osd_disk=$(echo $minion_osd_disk_partition | tr -d [:digit:])
 

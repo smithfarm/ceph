@@ -40,11 +40,9 @@ class SESQA(Task):
         self.nodes_gateway = self.ctx['nodes_gateway']
         self.nodes_storage = self.ctx['nodes_storage']
         self.nodes_random_storage = self.ctx['nodes_random_storage']
-        self.nodes_random_storages = self.ctx['nodes_random_storages']
         self.nodes_storage_only = self.ctx['nodes_storage_only']
         self.nodes_monitor = self.ctx['nodes_monitor']
         self.nodes_random_monitor = self.ctx['nodes_random_monitor']
-        self.nodes_random_monitors = self.ctx['nodes_random_monitors']
         self.remote_lookup_table = self.ctx['remote_lookup_table']
         self.remotes = self.ctx['remotes']
         self.roles = self.ctx['roles']
@@ -247,13 +245,13 @@ class Validation(SESQA):
             self.scripts.run(
                     self.master_remote,
                     'ses_install_nfs_ganesha_part1.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 2:
             self.scripts.run(
                     self.master_remote,
                     'ses_install_nfs_ganesha_part2.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
 
     def ses_install_rgw(self, **kwargs):
@@ -261,25 +259,25 @@ class Validation(SESQA):
             self.scripts.run(
                     self.master_remote,
                     'ses_install_rgw_part1.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 2:
             self.scripts.run(
                     self.master_remote,
                     'ses_install_rgw_part2.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 3:
             self.scripts.run(
                     self.master_remote,
                     'ses_install_rgw_part3.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 4:
             self.scripts.run(
                     self.master_remote,
                     'ses_install_rgw_part4.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
 
     def ses_monitor_failover(self, **kwargs):
@@ -307,19 +305,19 @@ class Validation(SESQA):
             self.scripts.run(
                     self.master_remote,
                     'ses_rgw_zones_part1.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 2:
             self.scripts.run(
                     self.master_remote,
                     'ses_rgw_zones_part2.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
         if kwargs['part'] == 3:
             self.scripts.run(
                     self.master_remote,
                     'ses_rgw_zones_part3.sh',
-                    args=self.nodes_random_storages,
+                    args=self.nodes_random_storage,
                     )
 
     def ses_removing_osd(self, **kwargs):
@@ -361,7 +359,7 @@ class Validation(SESQA):
         self.scripts.run(
                 self.master_remote,
                 'ses_stop_osd_daemon.sh',
-                args=self.nodes_random_storages,
+                args=self.nodes_random_storage,
                 )
 
     def ses_tuned(self, **kwargs):
