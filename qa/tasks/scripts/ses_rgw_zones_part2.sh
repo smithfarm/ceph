@@ -1,17 +1,10 @@
 set -ex
 
-declare -a storage_minions=("$@")
+minion_fqdn=$1
+minion2_fqdn=$2
 
-echo "### Getting random minion to install RGW on ###"
-random_minion_fqdn=${storage_minions[0]}
-random_minion=${random_minion_fqdn%.*}
-
-echo "### Getting second random minion to install RGW on ###"
-random_minion2_fqdn=${storage_minions[1]}
-random_minion2=${random_minion2_fqdn%.*}
-
-salt $random_minion_fqdn cmd.run "systemctl status ceph-radosgw@us-east-1.\$(hostname).service"
-salt $random_minion2_fqdn cmd.run "systemctl status ceph-radosgw@us-east-2.\$(hostname).service"
+salt $minion_fqdn cmd.run "systemctl status ceph-radosgw@us-east-1.\$(hostname).service"
+salt $minion2_fqdn cmd.run "systemctl status ceph-radosgw@us-east-2.\$(hostname).service"
 
 ceph health | grep HEALTH_OK
 

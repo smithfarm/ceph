@@ -1,7 +1,5 @@
 set -ex
 
-declare -a storage_minions=("$@")
+minion_fqdn=$2
 
-random_minion2_fqdn=${storage_minions[1]}
-
-sed -i "s/^#role-rgw\/cluster\/$random_minion2_fqdn/role-rgw\/cluster\/$random_minion2_fqdn/g" /srv/pillar/ceph/proposals/policy.cfg
+sed -i "s/^#role-rgw\/cluster\/$minion_fqdn/role-rgw\/cluster\/$minion_fqdn/g" /srv/pillar/ceph/proposals/policy.cfg

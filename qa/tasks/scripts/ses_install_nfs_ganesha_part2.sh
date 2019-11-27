@@ -1,21 +1,11 @@
 set -ex
 
-declare -a storage_minions=("$@")
+for minion in $@
+do
+    salt $minion service.status nfs-ganesha.service 2>/dev/null
+    salt $minion service.restart nfs-ganesha.service 2>/dev/null
+    sleep 15
+    salt $minion service.status nfs-ganesha.service | grep -i true 2>/dev/null
+done
 
-random_minion=${storage_minions[0]}
-
-random_minion2=${storage_minions[1]}
-
-salt $random_minion service.status nfs-ganesha.service 2>/dev/null
-salt $random_minion2 service.status nfs-ganesha.service 2>/dev/null
-salt $random_minion service.restart nfs-ganesha.service 2>/dev/null
-salt $random_minion2 service.restart nfs-ganesha.service 2>/dev/null
-
-sleep 15
-
-salt $random_minion service.status nfs-ganesha.service | grep -i true 2>/dev/null
-
-salt $random_minion2 service.status nfs-ganesha.service | grep -i true 2>/dev/null
-
-
-sed -i "s/^role-ganesha\/cluster\/$random_minion2/#role-ganesha\/cluster\/$random_minion2/g" /srv/pillar/ceph/proposals/policy.cfg
+sed -i "s/^role-ganesha\/cluster\/$minion/#role-ganesha\/cluster\/$minion/g" /srv/pillar/ceph/proposals/policy.cfg
