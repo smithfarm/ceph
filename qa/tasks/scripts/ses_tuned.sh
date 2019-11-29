@@ -1,13 +1,13 @@
 set -ex
 
 function check_tuned() {
-    role=$1
+    local role=$1
     shift
-    minions="$@" # this renders rest of arguments as single space separated list
-    roles=($role_list)
+    local minions="$@" # this renders rest of arguments as single space separated list
+    local roles=($role_list)
     if [ ${#roles} -gt 1 ] ; then
         for server in $minions ; do
-            role=$(salt $server cmd.run "tuned-adm active | egrep '$role|virtual-guest'" --output=json | jq -r .[] | cut -d : -f 2)
+            local role=$(salt $server cmd.run "tuned-adm active | egrep '$role|virtual-guest'" --output=json | jq -r .[] | cut -d : -f 2)
       done
     fi
     salt -L ${minions// /,} cmd.run "tuned-adm active | egrep '$role|virtual-guest'" 
@@ -23,8 +23,8 @@ do
     minion_list="${minions[@]}"  # this converts array to space separated list
     minion_list=${minion// /,}       # this replaces spaces with commas, likely we do not have spaces in hostnames
     if [ -n $minion_list] ; then
-        check_tuned $role
+        check_tuned $role ${minions[@]}
         salt -L $minion_list service.restart tuned.service
-        check_tuned $role
+        check_tuned $role ${minions[@]}
     fi
 done
