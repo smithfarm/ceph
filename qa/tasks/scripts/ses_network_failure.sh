@@ -99,126 +99,126 @@ remove_netem_rules "${half_net_storage_minions[@]}"
 # delay on half of monitors
 create_netem_rules "delay" "${half_net_monitor_minions[@]}"
 nettest "network_delay_monitor_nodes"
-remove_netem_rules "${#half_net_monitor_minions[@]}"
+remove_netem_rules "${half_net_monitor_minions[@]}"
 
 # delay on all osd nodes
 create_netem_rules "delay_all" "${net_storage_minions[@]}"
 nettest "network_delay_all_osd_nodes"
-remove_netem_rules "${#net_storage_minions[@]}" 
+remove_netem_rules "${net_storage_minions[@]}" 
 
 # delay on all monitors
 create_netem_rules "delay_all" "${net_monitor_minions[@]}"
 nettest "network_delay_all_monitor_nodes"
-remove_netem_rules "${#net_monitor_minions[@]}"
+remove_netem_rules "${net_monitor_minions[@]}"
 
 # delay on all monitors and osd nodes
 create_netem_rules "delay_all" "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 nettest "network_delay_on_all_monitors_and_all_osdnodes"
-remove_netem_rules "$((${#net_storage_minions[@]} + ${#net_monitor_minions[@]}))"
+remove_netem_rules "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 
 # PACKET LOSS
 # packet loss on half of osd nodes
 create_netem_rules "packet_loss" "${half_net_storage_minions[@]}"
 nettest "network_packet_loss_osd_node"
-remove_netem_rules "${#half_net_storage_minions[@]}"
+remove_netem_rules "${half_net_storage_minions[@]}"
 
 # packet loss on half of monitors
 create_netem_rules "packet_loss" "${half_net_monitor_minions[@]}"
 nettest "network_packet_loss_monitor_node"
-remove_netem_rules "${#half_net_monitor_minions[@]}"
+remove_netem_rules "${half_net_monitor_minions[@]}"
 
 # packet loss on all osd nodes
 create_netem_rules "packet_loss_all" "${net_storage_minions[@]}"
 nettest "network_packet_loss_all_osd_nodes"
-remove_netem_rules "${#net_storage_minions[@]}"
+remove_netem_rules "${net_storage_minions[@]}"
 
 # packet loss on all monitors
 create_netem_rules "packet_loss_all" "${net_monitor_minions[@]}"
 nettest "network_packet_loss_all_monitors"
-remove_netem_rules "${#net_monitor_minions[@]}"
+remove_netem_rules "${net_monitor_minions[@]}"
 
 # packet loss on all monitors and osd nodes
 create_netem_rules "packet_loss_all" "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 nettest "network_packet_loss_on_all_monitors_and_all_osdnodes"
-remove_netem_rules "$((${#net_storage_minions[@]} + ${#net_monitor_minions[@]}))"
+remove_netem_rules "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 
 # PACKET DUPLICATION
 # packet duplication on half of osd nodes
 create_netem_rules "packet_dup" "${half_net_storage_minions[@]}"
 nettest "network_packet_dup_osd_node"
-remove_netem_rules "${#half_net_storage_minions[@]}"
+remove_netem_rules "${half_net_storage_minions[@]}"
 
 # packet duplication on half of monitors
 create_netem_rules "packet_dup" "${half_net_monitor_minions[@]}"
 nettest "network_packet_dup_monitor_node"
-remove_netem_rules "${#half_net_monitor_minions[@]}"
+remove_netem_rules "${half_net_monitor_minions[@]}"
 
 # packet duplication on all osd nodes
 create_netem_rules "packet_dup_all" "${net_storage_minions[@]}"
 nettest "network_packet_dup_all_osd_nodes"
-remove_netem_rules "${#net_storage_minions[@]}"
+remove_netem_rules "${net_storage_minions[@]}"
 
 # packet duplication on all monitors
 create_netem_rules "packet_dup_all" "${net_monitor_minions[@]}"
 nettest "network_packet_dup_all_monitors"
-remove_netem_rules "${#net_monitor_minions[@]}"
+remove_netem_rules "${net_monitor_minions[@]}"
 
 # packet duplication on all monitors and osd nodes
 create_netem_rules "packet_dup_all" "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 nettest "network_packet_dup_on_all_monitors_and_all_osdnodes"
-remove_netem_rules "$((${#net_storage_minions[@]} + ${#net_monitor_minions[@]}))"
+remove_netem_rules "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 
 # PACKET CORRUPTION
 # packet corruption on half of osd nodes
 create_netem_rules "packet_corruption" "${half_net_storage_minions[@]}"
 nettest "network_packet_corruption_osd_node"
-remove_netem_rules "${#half_net_storage_minions[@]}"
+remove_netem_rules "${half_net_storage_minions[@]}"
 
 # packet corruption on half of monitors
 create_netem_rules "packet_corruption" "${half_net_monitor_minions[@]}"
 nettest "network_packet_corruption_monitor_node"
-remove_netem_rules "${#half_net_monitor_minions[@]}"
+remove_netem_rules "${half_net_monitor_minions[@]}"
 
 # packet corruption on all osd nodes
 create_netem_rules "packet_corruption_all" "${net_storage_minions[@]}"
 nettest "network_packet_corruption_all_osd_nodes"
-remove_netem_rules "${#net_storage_minions[@]}"
+remove_netem_rules "${net_storage_minions[@]}"
 
 # packet corruption on all monitors
 create_netem_rules "packet_corruption_all" "${net_monitor_minions[@]}"
 nettest "network_packet_corruption_all_monitors"
-remove_netem_rules "${#net_monitor_minions[@]}"
+remove_netem_rules "${net_monitor_minions[@]}"
 
 # packet corruption on all monitors and osd nodes
 create_netem_rules "packet_corruption_all" "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 nettest "network_packet_corruption_on_all_monitors_and_all_osdnodes"
-remove_netem_rules "$((${#net_storage_minions[@]} + ${#net_monitor_minions[@]}))"
+remove_netem_rules "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 
 # PACKET REORDERING
 # packet reordering on half of osd nodes
 create_netem_rules "packet_reordering" "${half_net_storage_minions[@]}"
 nettest "network_packet_reordering_osd_node"
-remove_netem_rules "${#half_net_storage_minions[@]}"
+remove_netem_rules "${half_net_storage_minions[@]}"
 
 # packet reordering on half of monitors
 create_netem_rules "packet_reordering" "${half_net_monitor_minions[@]}"
 nettest "network_packet_reordering_monitor_node"
-remove_netem_rules "${#half_net_monitor_minions[@]}"
+remove_netem_rules "${half_net_monitor_minions[@]}"
 
 # packet reordering on all osd nodes
 create_netem_rules "packet_reordering_all" "${net_storage_minions[@]}"
 nettest "network_packet_reordering_all_osd_nodes"
-remove_netem_rules "${#net_storage_minions[@]}"
+remove_netem_rules "${net_storage_minions[@]}"
 
 # packet reordering on all monitors
 create_netem_rules "packet_reordering_all" "${net_monitor_minions[@]}"
 nettest "network_packet_reordering_all_monitors"
-remove_netem_rules "${#net_monitor_minions[@]}"
+remove_netem_rules "${net_monitor_minions[@]}"
 
 # packet reordering on all monitors and osd nodes
 create_netem_rules "packet_reordering_all" "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 nettest "network_packet_reordering_on_all_monitors_and_all_osdnodes"
-remove_netem_rules "$((${#net_storage_minions[@]} + ${#net_monitor_minions[@]}))"
+remove_netem_rules "${net_storage_minions[@]} ${net_monitor_minions[@]}"
 
 # print results
 echo " *** RESULTS: "
