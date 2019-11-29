@@ -1,10 +1,8 @@
 set -ex
 
-# deploy services if they aren't already
 declare -a storage_minions=("$@")
-echo "role-ganesha/cluster/${storage_minions[0]}" >> /srv/pillar/ceph/proposals/policy.cfg
-
-echo "role-mds/cluster/${storage_minions[1]}" >> /srv/pillar/ceph/proposals/policy.cfg
-
-echo "role-rgw/cluster/${storage_minions[2]}" >> /srv/pillar/ceph/proposals/policy.cfg
+roles=(ganesha mds rgw)
+for i in ${!roles[@]} ; do
+    echo "role-${role[i]}/cluster/${storage_minions[i]}" >> /srv/pillar/ceph/proposals/policy.cfg
+done
 

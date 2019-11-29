@@ -1,33 +1,32 @@
 set -ex
 
 
-curl_cmd (){
-
-# $1 = request type (POST or GET or DELETE)
-# $2 = login_token
-# $3 = url
-# $4 = data
-
-if [ ! -z "$4" ]
-then
-    curl -X $1 -s -H "accept: */*" -H "Authorization: Bearer $2" "${dashboard_addr}$3" -H "Content-Type: application/json" -d "$(cat $4)"
-else
-    curl -X $1 -s -H "accept: */*" -H "Authorization: Bearer $2" "${dashboard_addr}$3"
-fi
+function curl_cmd (){
+    local request_type=$1
+    local login_token=$2
+    local url=$3
+    local data=$4
+    
+    if [ ! -z "$data" ]
+    then
+        curl -X $request_type -s -H "accept: */*" -H "Authorization: Bearer $login_token" "${dashboard_addr}$url" -H "Content-Type: application/json" -d "$(cat $data)"
+    else
+        curl -X $request_type -s -H "accept: */*" -H "Authorization: Bearer $login_token" "${dashboard_addr}$url"
+    fi
 }
 
-rgw_bucket(){
- # $1 path
- # $2 pseudo
- # $3 tag
+function rgw_bucket(){
+    local path=$1
+    local pseudo=$2
+    local tag=$3
 cat << EOF > /tmp/rgw_export.json
 {
-  "path": "$1",
+  "path": "$path",
   "cluster_id": "$cluster_id",
   "daemons": $daemons,
-  "pseudo": "$2",
+  "pseudo": "$pseudo",
   "access_type": "RW",
-  "tag": "$3",
+  "tag": "$tag",
   "squash": "no_root_squash",
   "security_label": false,
   "protocols": [ 3, 4 ],
@@ -42,18 +41,18 @@ cat << EOF > /tmp/rgw_export.json
 EOF
 }
 
-cephfs_bucket () {
- # $1 path
- # $2 pseudo
- # $3 tag
+function cephfs_bucket () {
+    local path=$1
+    local pseudo=$2
+    local tag=$3
 cat << EOF > /tmp/cephfs_export.json
 {
-  "path": "$1",
+  "path": "$path",
   "cluster_id": "$cluster_id",
   "daemons": $daemons,
-  "pseudo": "$2/",
+  "pseudo": "$pseudo/",
   "access_type": "RW",
-  "tag": "$3",
+  "tag": "$tag",
   "squash": "no_root_squash",
   "security_label": "false",
   "protocols": [ 3, 4 ],
@@ -68,8 +67,8 @@ cat << EOF > /tmp/cephfs_export.json
   "reload_daemons": "true"
 }
 EOF
-
 }
+
 ceph config set mgr mgr/dashboard/ssl false
 ceph mgr module disable dashboard
 ceph mgr module enable dashboard

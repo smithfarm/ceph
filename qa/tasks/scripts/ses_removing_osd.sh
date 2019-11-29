@@ -2,12 +2,12 @@ set -ex
 
 declare -a minion_fqdn="$1"
 
-wait_for_server () {
- sleep 20
- while ! nc -zv $1 22 
- do
-     sleep 20
- done
+function wait_for_server () {
+    sleep 20
+    while ! nc -zv $1 22 
+    do
+        sleep 20
+    done
 }
 
 minion=${minion_fqdn%%.*}

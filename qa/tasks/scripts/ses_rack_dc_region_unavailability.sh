@@ -3,19 +3,42 @@ set -ex
 master=$(hostname -f)
 
 # split nodes
-split_nodes(){
-
-first_part=$(($1 / 2))
-second_part=$(($1 - $first_part))
-
+function split_nodes(){
+    number_of_nodes=$1
+    first_part=$(($number_of_nodes / 2))
+    second_part=$(($number_of_nodes - $first_part))
 }
 
 # wait for cluster health OK
-cluster_health(){
-until [ "$(ceph health)" == HEALTH_OK ]
-do
-    sleep 30
-done
+function cluster_health(){
+    until [ "$(ceph health)" == HEALTH_OK ]
+    do
+        sleep 30
+    done
+}
+
+function iptables_drop() {
+    salt ${1} cmd.run "iptables -I OUTPUT -d localhost -j ACCEPT"
+    salt ${1} cmd.run "iptables -I OUTPUT -d $master -j ACCEPT"
+    salt ${1} cmd.run "iptables -I INPUT -s localhost -j ACCEPT"
+    salt ${1} cmd.run "iptables -I INPUT -s $master -j ACCEPT"
+    salt ${1} cmd.run "iptables -P INPUT DROP"
+    salt ${1} cmd.run "iptables -P OUTPUT DROP"
+}
+
+function iptables_accept() {
+    salt ${1} cmd.run "iptables -P INPUT ACCEPT"
+    salt ${1} cmd.run "iptables -P OUTPUT ACCEPT"
+    salt ${1} cmd.run "iptables -F"
+}
+
+function wait_until_down() {
+    until ceph -s | grep ".* ${1}.* down"
+    do
+        sleep 30
+    done
+    ceph -s 
+    ceph osd tree
 }
 
 crushmap_file=crushmap
@@ -28,20 +51,16 @@ root_name=$(grep ^root ${crushmap_file}.txt | awk '{print $2}')
 # exit 1 if storage nodes are less then 4
 if [ ${#hosts[@]} -lt 4 ]
 then
-    echo "Too less nodes with storage role. Minimum is 4."
+    echo "Too few nodes with storage role. Minimum is 4."
     exit 1
 fi
 
 ### rack failure
-ceph osd crush add-bucket rack1 rack
-ceph osd crush add-bucket rack2 rack
-ceph osd crush add-bucket rack3 rack
-ceph osd crush add-bucket rack4 rack
-
-ceph osd crush move rack1 root=$root_name
-ceph osd crush move rack2 root=$root_name
-ceph osd crush move rack3 root=$root_name
-ceph osd crush move rack4 root=$root_name
+for i in rack{1..4}
+do
+    ceph osd crush add-bucket $i rack
+    ceph osd crush move $i root=$root_name
+done
 
 ### region 1
 split_nodes ${#hosts[@]}
@@ -118,29 +137,15 @@ done
 # bring down rack
 for node2fail in ${rack4_hosts[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT DROP"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT DROP"
+    iptables_drop ${node2fail}.teuthology
 done
 
-until ceph -s | grep ".* rack.* down"
-do
-    sleep 30
-done 
-
-ceph -s
-
-ceph osd tree
+wait_until_down "rack"
 
 # bring rack up
 for node2fail in ${rack4_hosts[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -F"
+    iptables_accept ${node2fail}.teuthology
 done
 
 cluster_health
@@ -161,29 +166,15 @@ dc2_nodes=(${rack3_hosts[@]} ${rack4_hosts[@]})
 # bringing down DC
 for node2fail in ${dc1_nodes[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT DROP"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT DROP"
+    iptables_drop ${node2fail}.teuthology
 done
 
-until ceph -s | grep ".* datacenter.* down"
-do 
-    sleep 30
-done
-
-ceph -s 
-
-ceph osd tree
+wait_until_down "datacenter"
 
 # bring DC up
 for node2fail in ${dc1_nodes[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -F"
+    iptables_accept ${node2fail}.teuthology
 done
 
 cluster_health
@@ -209,29 +200,15 @@ region2_nodes=(${rack3_hosts[@]} ${rack4_hosts[@]})
 # bringing down region
 for node2fail in ${region1_nodes[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I OUTPUT -d $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s localhost -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -I INPUT -s $master -j ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT DROP"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT DROP"
+    iptables_drop ${node2fail}.teuthology
 done
 
-until ceph -s | grep ".* region.* down"
-do 
-    sleep 30
-done
-
-ceph -s
- 
-ceph osd tree
+wait_until_down "region"
 
 # bring region up
 for node2fail in ${region1_nodes[@]}
 do
-    salt ${node2fail}.teuthology cmd.run "iptables -P INPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -P OUTPUT ACCEPT"
-    salt ${node2fail}.teuthology cmd.run "iptables -F"
+    iptables_accept ${node2fail}.teuthology
 done
 
 cluster_health

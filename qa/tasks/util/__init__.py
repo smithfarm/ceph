@@ -181,8 +181,6 @@ def introspect_roles(ctx, logger, quiet=True):
 
     nodes_random_storage = random.sample(nodes_storage, 2 if len(nodes_storage) > 1 else 1)
     nodes_random_monitor = random.sample(nodes_monitor, 2 if len(nodes_monitor) > 1 else 1)
-    nodes_random_storage = list(set(nodes_random_storage))
-    nodes_random_monitor = list(set(nodes_random_monitor))
 
     nodes_storage_only = []
     for node in nodes_storage:
