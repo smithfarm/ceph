@@ -21,7 +21,7 @@ do
     test "$role" == "ceph-osd" && role=storage
     minions=($(salt-run select.minions roles=$role --output=json | jq -r .[] | grep -v $(hostname -f)))
     minion_list="${minions[@]}"  # this converts array to space separated list
-#    minion_list=${minion// /,}       # this replaces spaces with commas, likely we do not have spaces in hostnames
+    minion_list=${minion// /,}       # this replaces spaces with commas, likely we do not have spaces in hostnames
     if [ -n "$minion_list" ] ; then
         check_tuned $role ${minions[@]}
         salt -L "$minion_list" service.restart tuned.service
