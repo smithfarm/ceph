@@ -21,7 +21,7 @@ from teuthology.task import Task
 log = logging.getLogger(__name__)
 
 
-class Caasp(Task):
+class caasp(Task):
     """
     Deploy a Salt cluster on all remotes (test nodes).
 
@@ -51,3 +51,5 @@ class Caasp(Task):
         self.sm = SaltManager(self.ctx)
         self.master_remote = self.sm.master_remote
         log.debug("end of constructor method")
+
+task = caasp
