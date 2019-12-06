@@ -1,6 +1,6 @@
 set -ex
 
-declare -a minion2run="$@"
+declare -a minion2run="$1"
 
 ceph -s
 
