@@ -3,7 +3,7 @@ set -ex
 declare -a disk_storage_minion=$1
 
 function health_ok() {
-    until [ "$(ceph health)" == "HEALTH_OK" ]
+    until [ "$(ceph health)" == "HEALTH_OK" ] || [[ "$(ceph health)" == *"daemons have recently crashed" ]]
     do
         sleep 30
     done
