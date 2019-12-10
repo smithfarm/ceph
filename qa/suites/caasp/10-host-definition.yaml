@@ -1,0 +1,6 @@
+roles:
+- [skuka_launcher]
+- [master.0]
+- [worker.0]
+- [worker.1]
+- [worker.2]
