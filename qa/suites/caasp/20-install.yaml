@@ -3,3 +3,4 @@ tasks:
 - install:
     install_ceph_packages: false
     extra_system_packages: [skuba]
+- caasp:
