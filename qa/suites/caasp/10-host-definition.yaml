@@ -1,6 +1,6 @@
 roles:
-- [skuka_launcher]
-- [master.0]
-- [worker.0]
-- [worker.1]
-- [worker.2]
+- [skuba_mgmt_host]
+- [caasp_master.0]
+- [caasp_worker.0]
+- [caasp_worker.1]
+- [caasp_worker.2]

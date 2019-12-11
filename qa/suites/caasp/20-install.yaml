@@ -1,4 +1,5 @@
 tasks:
-    install:
-        install_ceph_packages: false
-        extra_system_packages: [skuba]
+- clock:
+- install:
+    install_ceph_packages: false
+    extra_system_packages: [skuba]
