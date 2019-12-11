@@ -6,7 +6,16 @@ Linter:
 '''
 import logging
 
-from util import remote_exec
+from util import (
+#    copy_directory_recursively,
+#    enumerate_osds,
+    get_remote_for_role,
+#    get_rpm_pkg_version,
+#    introspect_roles,
+#    remote_exec,
+#    remote_run_script_as_root,
+#    sudo_append_to_file,
+    )
 from teuthology.exceptions import ConfigError
 from teuthology.misc import (
     delete_file,
@@ -21,7 +30,7 @@ from teuthology.task import Task
 log = logging.getLogger(__name__)
 
 
-class caasp(Task):
+class Caasp(Task):
     """
     Deploy a Salt cluster on all remotes (test nodes).
 
@@ -44,12 +53,35 @@ class caasp(Task):
     """
 
     def __init__(self, ctx, config):
-        super(Salt, self).__init__(ctx, config)
+        super(Caasp, self).__init__(ctx, config)
         log.debug("beginning of constructor method")
         log.debug("munged config is {}".format(self.config))
         self.remotes = self.cluster.remotes
-        self.sm = SaltManager(self.ctx)
         self.master_remote = self.sm.master_remote
         log.debug("end of constructor method")
 
-task = caasp
+    def begin(self):
+        self.log.info('Installing Caasp on mgmt host')
+        self.deploy_ssh_keys()
+
+    def deploy_ssh_keys(self):
+        self.mgmt = get_remote_for_role(self.ctx, skuba_mgmt_host)
+        self.mgmt.run(args=[
+            'sudo',
+            'zypper',
+            '--non-interactive',
+            '--no-gpg-checks',
+            'install',
+            '--force',
+            '--no-recommends',
+            'skuba',
+        ])
+
+    def end(self):
+        pass
+
+    def teardown(self):
+        pass
+
+
+task = Caasp
