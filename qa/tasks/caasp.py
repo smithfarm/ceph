@@ -67,14 +67,15 @@ class Caasp(Task):
     def deploy_ssh_keys(self):
         self.mgmt = get_remote_for_role(self.ctx, skuba_mgmt_host)
         self.mgmt.run(args=[
-            'sudo',
-            'zypper',
-            '--non-interactive',
-            '--no-gpg-checks',
-            'install',
-            '--force',
-            '--no-recommends',
-            'skuba',
+            'ssh-keygen',
+            '-b',
+            '2048',
+            '-t',
+            'rsa',
+            '-f',
+            '/tmp/sshkey',
+            '-N',
+            '""'
         ])
 
     def end(self):
