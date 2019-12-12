@@ -57,8 +57,7 @@ class Caasp(Task):
         os.system('scp "%s" "%s:%s"' % ('/home/ubuntu/.ssh/id_rsa', self.mgmt_remote, '/home/ubuntu/.ssh/id_rsa'))
 
     def __enable_ssh_agent(self):
-        self.mgmt_remote.sh("eval `ssh-agent`")
-        self.mgmt_remote.sh("ssh-add ~/.ssh/id_rsa")
+        self.mgmt_remote.sh("eval `ssh-agent`; ssh-add ~/.ssh/id_rsa")
 
     def __create_cluster(self):
         master_remote = get_remote_for_role(self.ctx, "caasp_master.0")
