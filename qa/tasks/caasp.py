@@ -56,10 +56,10 @@ class Caasp(Task):
     def __init__(self, ctx, config):
         super(Caasp, self).__init__(ctx, config)
         log.debug("beginning of constructor method")
-        log.debug("munged config is {}".format(self.config))
+        self.ctx['roles'] = self.ctx.config['roles']
+        self.log = log
         self.remotes = self.cluster.remotes
-        self.master_remote = self.sm.master_remote
-        log.debug("end of constructor method")
+        self.mgmt_remote = get_remote_for_role(self.ctx, "skuba_mgmt_host.0")
 
     def begin(self):
         self.log.info('Installing Caasp on mgmt host')
@@ -73,7 +73,7 @@ class Caasp(Task):
                   self.mgmt_remote, '/home/ubuntu/.ssh/id_rsa'))
 
     def deploy_ssh_keys(self):
-        self.mgmt = get_remote_for_role(self.ctx, skuba_mgmt_host)
+        self.mgmt = get_remote_for_role(self.ctx, "skuba_mgmt_host.0")
         self.mgmt.run(args=[
             'ssh-keygen',
             '-b',
