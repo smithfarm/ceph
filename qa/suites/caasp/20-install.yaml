@@ -4,5 +4,5 @@ tasks:
     install_ceph_packages: false
     extra_system_packages:
       - skuba
-      - kubectl
+      - kubernetes-kubeadm
 - caasp:
