@@ -5,6 +5,7 @@ Linter:
     flake8 --max-line-length=100
 '''
 import logging
+import os
 
 from util import (
 #    copy_directory_recursively,
@@ -63,6 +64,13 @@ class Caasp(Task):
     def begin(self):
         self.log.info('Installing Caasp on mgmt host')
         self.deploy_ssh_keys()
+
+    def _copy_key_to_mgmt(self):
+        '''
+        Copy key from teuthology server to the mgmt one
+        '''
+        os.system('scp "%s" "%s:%s"' % ('/home/ubuntu/.ssh/id_rsa',
+                  self.mgmt_remote, '/home/ubuntu/.ssh/id_rsa'))
 
     def deploy_ssh_keys(self):
         self.mgmt = get_remote_for_role(self.ctx, skuba_mgmt_host)
