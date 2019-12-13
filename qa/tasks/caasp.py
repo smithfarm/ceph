@@ -49,6 +49,7 @@ class Caasp(Task):
         self.log = log
         self.remotes = self.cluster.remotes
         self.mgmt_remote = get_remote_for_role(self.ctx, "skuba_mgmt_host.0")
+        self.set_agent = "eval `ssh-agent` && ssh-add ~/.ssh/id_rsa && "
 
     def __copy_key_to_mgmt(self):
         '''
@@ -63,10 +64,6 @@ class Caasp(Task):
     def __enable_ssh_agent(self):
         self.mgmt_remote.sh("eval `ssh-agent` && ssh-add ~/.ssh/id_rsa")
 
-    def with_agent(self, command):
-        set_agent = "eval `ssh-agent` && ssh-add ~/.ssh/id_rsa && "
-        self.mgmt_remote.sh("%s %s" % (set_agent, command))
-
     def __create_cluster(self):
         master_remote = get_remote_for_role(self.ctx, "caasp_master.0")
         commands = [
@@ -75,13 +72,12 @@ class Caasp(Task):
                 master_remote.hostname),
         ]
         for command in commands:
-            self.with_agent(command)
+            self.mgmt_remote.sh("%s %s" % (self.set_agent, command))
         for i in range(4):
             worker_remote = get_remote_for_role(
                 self.ctx, "caasp_worker." + str(i))
-            self.mgmt_remote.sh(
-                "cd cluster;skuba node join --role worker --user ubuntu --sudo --target {} worker.{}".format(
-                    worker_remote.hostname, str(i)))
+            command = "cd cluster;skuba node join --role worker --user ubuntu --sudo --target {} worker.{}".format(worker_remote.hostname, str(i))
+            self.mgmt_remote.sh("%s %s" % (self.set_agent, command))
 
     def begin(self):
         self.log.info('Installing Caasp on mgmt host')
