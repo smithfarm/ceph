@@ -49,7 +49,6 @@ class Caasp(Task):
         self.log = log
         self.remotes = self.cluster.remotes
         self.mgmt_remote = get_remote_for_role(self.ctx, "skuba_mgmt_host.0")
-        self.h("eval `ssh-agent`; ssh-add ~/.ssh/id_rsa")
 
     def __copy_key_to_mgmt(self):
         '''
