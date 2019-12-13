@@ -73,7 +73,7 @@ class Caasp(Task):
         ]
         for command in commands:
             self.mgmt_remote.sh("%s %s" % (self.set_agent, command))
-        for i in range(4):
+        for i in range(3):
             worker_remote = get_remote_for_role(
                 self.ctx, "caasp_worker." + str(i))
             command = "cd cluster;skuba node join --role worker --user ubuntu --sudo --target {} worker.{}".format(worker_remote.hostname, str(i))
