@@ -65,7 +65,7 @@ class Caasp(Task):
 
     def with_agent(self, command):
         set_agent = "eval `ssh-agent` && ssh-add ~/.ssh/id_rsa && "
-        self.mgmt.remote.sh("%s %s" % (set_agent, command))
+        self.mgmt_remote.sh("%s %s" % (set_agent, command))
 
     def __create_cluster(self):
         master_remote = get_remote_for_role(self.ctx, "caasp_master.0")
