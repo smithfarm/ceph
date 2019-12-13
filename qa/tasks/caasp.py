@@ -75,7 +75,7 @@ class Caasp(Task):
                 master_remote.hostname),
         ]
         for command in commands:
-            self.with_agent(self, command)
+            self.with_agent(command)
         for i in range(4):
             worker_remote = get_remote_for_role(
                 self.ctx, "caasp_worker." + str(i))
