@@ -66,18 +66,21 @@ class Caasp(Task):
 
     def __create_cluster(self):
         master_remote = get_remote_for_role(self.ctx, "caasp_master.0")
-        commands = [
-            "skuba cluster init --control-plane {} cluster".format(master_remote.hostname),
-            "cd cluster && skuba node bootstrap --user ubuntu --sudo --target {} my-master".format(
-                master_remote.hostname),
-        ]
-        for command in commands:
-            self.mgmt_remote.sh("%s %s" % (self.set_agent, command))
-        for i in range(3):
+        ssh_agent_prefix = "eval `ssh-agent`; ssh-add ~/.ssh/id_rsa;"
+        self.mgmt_remote.sh("skuba cluster init --control-plane {} cluster"
+                            .format(master_remote.hostname))
+        self.mgmt_remote.sh(
+            "export KUBECONFIG=/home/ubuntu/testcluster/admin.conf")
+        self.mgmt_remote.sh(
+            "cd cluster;skuba node bootstrap --user ubuntu "
+            "--sudo --target {} my-master".format(master_remote.hostname))
+        for i in range(sum(1 for x in all_roles_of_type(
+                self.ctx.cluster, 'caasp_worker'))):
             worker_remote = get_remote_for_role(
                 self.ctx, "caasp_worker." + str(i))
-            command = "cd cluster;skuba node join --role worker --user ubuntu --sudo --target {} worker.{}".format(worker_remote.hostname, str(i))
-            self.mgmt_remote.sh("%s %s" % (self.set_agent, command))
+            self.mgmt_remote.sh("cd cluster;skuba node join --role worker "
+                                "--user ubuntu --sudo --target {} worker.{}"
+                                .format(worker_remote.hostname, str(i)))
 
     def begin(self):
         self.log.info('Installing Caasp on mgmt host')
