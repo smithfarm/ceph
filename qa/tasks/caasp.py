@@ -13,7 +13,8 @@ from teuthology.misc import (
     sh,
     sudo_write_file,
     write_file,
-    copy_file
+    copy_file,
+    all_roles_of_type
     )
 from teuthology.orchestra import run
 from teuthology.task import Task
@@ -81,7 +82,6 @@ class Caasp(Task):
     def begin(self):
         self.log.info('Installing Caasp on mgmt host')
         self.__copy_key_to_mgmt()
-        self.__enable_ssh_agent()
         self.__create_cluster()
 
     def end(self):
