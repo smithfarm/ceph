@@ -1412,7 +1412,16 @@ exit 0
 %if %{with lttng}
 %{_bindir}/rbd-replay-prep
 %endif
+%if 0%{?fedora} || 0%{?rhel}
 %{_bindir}/ceph-post-file
+%endif
+%if 0%{?suse_version}
+%if 0%{?is_opensuse}
+%{_bindir}/ceph-post-file
+%else
+%exclude {_bindir}/ceph-post-file
+%endif
+%endif
 %{_tmpfilesdir}/ceph-common.conf
 %{_mandir}/man8/ceph-authtool.8*
 %{_mandir}/man8/ceph-conf.8*
